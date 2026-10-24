@@ -80,13 +80,15 @@ dialog{border:1px solid var(--line);border-radius:16px;padding:0;background:var(
 dialog::backdrop{background:rgba(0,0,0,.35)}
 .dh{padding:14px;border-bottom:1px solid var(--line);font-weight:800;display:flex;justify-content:space-between;align-items:center}
 .db{padding:14px}
+.top{flex-wrap:wrap;gap:6px}.topActions{gap:6px}
 </style>
 </head>
 <body>
 <div class="top">
-  <div class="brand"><i style="font-size:12px">Rs</i> Expense Tracker</div>
+  <div class="brand"><i><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="3.5" y="13" width="4.5" height="7" rx="1.6" fill="#fff" opacity=".8"/><rect x="9.8" y="9" width="4.5" height="11" rx="1.6" fill="#fff" opacity=".9"/><rect x="16" y="5" width="4.5" height="15" rx="1.6" fill="#fff"/></svg></i> Expense Tracker</div>
   <div class="topActions">
-    <button class="btn sm" id="backupBtn">Download</button>
+    <button class="btn sm" id="syncBtn" onclick="openSync()">Sync</button>
+    <button class="btn sm" id="backupBtn">Backup</button>
     <label class="btn sm" style="cursor:pointer"><input id="restoreFile" type="file" accept=".db,.sqlite,.bin" hidden>Restore</label>
   </div>
 </div>
@@ -100,6 +102,8 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
       <div class="amountWrap"><span>Rs.</span><input id="amt" class="input" inputmode="decimal" placeholder="0.00" autocomplete="off"></div>
       <div style="height:10px"></div>
       <div class="seg" role="tablist"><button id="tExpense" class="on" onclick="switchType('expense')">Expense</button><button id="tIncome" onclick="switchType('income')">Income</button></div>
+      <div class="label">Account</div><div id="accChips" class="chips"></div><div id="accHint" class="muted" style="font-size:12px;margin:6px 2px 0"></div>
+      <div id="noAcc" class="hidden empty" style="padding:12px;margin-top:8px">No account yet. <a href="#" onclick="nav('accounts');openAcc();return false" style="color:var(--teal2);font-weight:700">Create your first account</a></div>
       <div class="label">Category</div>
       <div id="catChips" class="chips"></div>
       <div id="subWrap" class="hidden"><div class="label">Sub-category</div><div id="subChips" class="chips"></div></div>
@@ -156,14 +160,23 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
         <select id="loanKind" class="input"><option value="given">Lent</option><option value="returned">Received</option></select>
       </div>
       <input id="loanNote" class="input" placeholder="Note (optional)" style="margin-top:8px">
+      <select id="loanAcc" class="input" style="margin-top:8px"></select>
       <button class="btn primary" style="width:100%;margin-top:10px" onclick="addLoan()">Add entry</button>
     </div>
     <div id="pendingsList" class="list" style="margin-top:12px"></div>
   </section>
 
+  <!-- ACCOUNTS -->
+  <section id="view-accounts" class="hidden">
+    <div class="card hero"><div class="k">Total balance</div><div id="accTotal" class="v">Rs. 0.00</div></div>
+    <div class="row" style="margin-top:10px"><button class="btn primary" onclick="openAcc()">+ Account</button><button class="btn" onclick="openTr()">⇄ Transfer</button><button class="btn" onclick="nav('categories')">Categories</button></div>
+    <div id="accList" class="list" style="margin-top:10px"></div>
+    <div class="label">Recent transfers</div><div id="trList" class="list"></div>
+  </section>
+
   <!-- CATEGORIES -->
   <section id="view-categories" class="hidden">
-    <div class="card hrow"><b>Categories</b><button class="btn primary sm" onclick="openCat()">+ New category</button></div>
+    <div class="card hrow"><button class="btn sm" onclick="nav('accounts')">‹ Accounts</button><b>Categories</b><button class="btn primary sm" onclick="openCat()">+ New category</button></div>
     <div id="catsExpense" class="list" style="margin-top:10px"></div>
     <div class="label">Income categories</div>
     <div id="catsIncome" class="list"></div>
@@ -175,7 +188,7 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
   <button id="nav-history" onclick="nav('history')"><b>◧</b>History</button>
   <button id="nav-dashboard" onclick="nav('dashboard')"><b>◰</b>Dashboard</button>
   <button id="nav-pendings" onclick="nav('pendings')"><b>⇄</b>Pendings</button>
-  <button id="nav-categories" onclick="nav('categories')"><b>⚙</b>Categories</button>
+  <button id="nav-accounts" onclick="nav('accounts')"><b>◎</b>Accounts</button>
 </nav>
 
 <div id="toast" class="hidden" style="position:fixed;left:12px;right:12px;bottom:76px;z-index:30;max-width:496px;margin:auto;background:var(--text);color:var(--bg);padding:10px 14px;border-radius:12px;display:flex;justify-content:space-between;align-items:center;font-weight:600"></div>
@@ -194,6 +207,25 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
     <div class="row" style="margin-top:12px"><button class="btn" style="flex:1" onclick="catDlg.close()">Cancel</button><button class="btn primary" style="flex:1" onclick="saveCategory()">Save</button></div>
   </div>
 </dialog>
+
+<dialog id="accDlg"><div class="dh"><span id="accDlgTitle">New account</span><button class="btn sm" onclick="accDlg.close()">✕</button></div><div class="db">
+  <input id="accName" class="input" placeholder="Name (e.g. Cash, HBL Bank, JazzCash)" maxlength="24">
+  <div class="label">Opening balance (Rs.)</div><input id="accOpen" class="input" inputmode="decimal" placeholder="0">
+  <div class="label">Emoji</div><input id="accEmoji" class="input" maxlength="4">
+  <div class="chips" style="margin-top:8px"><button class="chip" onclick="accEmoji.value='💵'">💵</button><button class="chip" onclick="accEmoji.value='🏦'">🏦</button><button class="chip" onclick="accEmoji.value='📱'">📱</button><button class="chip" onclick="accEmoji.value='💳'">💳</button><button class="chip" onclick="accEmoji.value='👛'">👛</button><button class="chip" onclick="accEmoji.value='🪙'">🪙</button></div>
+  <input type="hidden" id="accId"><div class="row" style="margin-top:12px"><button class="btn" onclick="accDlg.close()">Cancel</button><button class="btn primary" onclick="saveAcc()">Save</button></div></div></dialog>
+
+<dialog id="trDlg"><div class="dh"><span>Transfer between accounts</span><button class="btn sm" onclick="trDlg.close()">✕</button></div><div class="db">
+  <div class="label">From</div><select id="trFrom" class="input"></select><div class="label">To</div><select id="trTo" class="input"></select>
+  <div class="label">Amount (Rs.)</div><input id="trAmt" class="input" inputmode="decimal" placeholder="0.00">
+  <div class="grid2" style="margin-top:8px"><input id="trDate" type="date" class="input"><input id="trNote" class="input" placeholder="Note (optional)"></div>
+  <button class="btn primary" style="width:100%;margin-top:12px;padding:12px" onclick="saveTr()">Transfer</button></div></dialog>
+
+<dialog id="syncDlg"><div class="dh"><span>Google Drive sync</span><button class="btn sm" onclick="syncDlg.close()">✕</button></div><div class="db">
+  <div class="muted" style="font-size:13px">Keeps your devices in step through a private Drive app folder that only this app can see.</div>
+  <div class="label">Google Client ID</div><input id="gcid" class="input" placeholder="xxxx.apps.googleusercontent.com" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <button id="syncGo" class="btn primary" style="width:100%;margin-top:12px;padding:12px" onclick="doSync()">Sync now</button>
+  <div id="syncMsg" class="muted" style="font-size:13px;margin-top:10px;min-height:18px"></div><div id="lastSync" class="muted" style="font-size:12px;margin-top:4px"></div></div></dialog>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
 <script>
@@ -224,12 +256,15 @@ function ensureSchema(){
   db.run(`CREATE TABLE IF NOT EXISTS loans (id TEXT PRIMARY KEY, person TEXT, txn_date TEXT, amount INTEGER, kind TEXT, note TEXT, updated_at TEXT, deleted_at TEXT)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_txn_date ON transactions(txn_date)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_cat_parent ON categories(parent_id)`);
+  db.run(`CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, name TEXT, emoji TEXT, opening INTEGER, active INTEGER, updated_at TEXT, deleted_at TEXT)`);
+  db.run(`CREATE TABLE IF NOT EXISTS transfers (id TEXT PRIMARY KEY, txn_date TEXT, amount INTEGER, from_id TEXT, to_id TEXT, note TEXT, updated_at TEXT, deleted_at TEXT)`);
+  ['transactions','loans'].forEach(t=>{ if(!q(`PRAGMA table_info(${t})`).some(c=>c.name==='account_id')) db.run(`ALTER TABLE ${t} ADD COLUMN account_id TEXT`); });
 }
 function needSeed(){const r=q(`SELECT count(*) as c FROM categories WHERE deleted_at IS NULL`); return (r[0]?.c||0)===0;}
 function seed(){
   const now=new Date().toISOString();
   function addCat(name,kind,emoji,color,parent=null){
-    const id=uid(); run(`INSERT INTO categories (id,name,parent_id,kind,emoji,color,active,updated_at) VALUES (?,?,?,?,?,?,1,?)`,[id,name,parent,kind,emoji,color,now]); return id;
+    const id='seed:'+kind+':'+name+(parent?'@'+parent:''); run(`INSERT INTO categories (id,name,parent_id,kind,emoji,color,active,updated_at) VALUES (?,?,?,?,?,?,1,?)`,[id,name,parent,kind,emoji,color,now]); return id;
   }
   const exp=[
     ['Food','🍔','#f97316',[['Restaurant'],['Groceries'],['Cafe']]],
@@ -258,14 +293,19 @@ async function init(){
   if(buf){ db=new SQL.Database(new Uint8Array(buf)); ensureSchema();}
   else { db=new SQL.Database(); ensureSchema(); if(needSeed()) seed(); await saveDB();}
   // ensure schema if old
-  ensureSchema(); loadCats();
+  ensureSchema();
+  if(localStorage.getItem('exp_seedv')!=='2'){ // one-time: shared default category ids so synced devices do not get duplicate categories
+    if(!q(`SELECT 1 x FROM transactions LIMIT 1`).length && !q(`SELECT 1 x FROM loans LIMIT 1`).length){ run(`DELETE FROM categories`); seed(); await saveDB(); }
+    localStorage.setItem('exp_seedv','2');
+  }
+  loadCats();
   $('#txnDate').value=todayISO();
   $('#loanDate').value=todayISO();
   buildEmojiGrid(); buildSwatches();
   switchType('expense'); renderAll(); setupBackup(); updateBk(); if(navigator.storage&&navigator.storage.persist) navigator.storage.persist();
   if('serviceWorker' in navigator) try{navigator.serviceWorker.register('sw.js');}catch{}
 }
-function renderAll(){renderCatChips(); const m={history:renderHistory,dashboard:renderDashboard,pendings:renderPendings,categories:renderCategories}[curView]; if(m) m();}
+function renderAll(){renderCatChips(); renderAccChips(); const m={accounts:renderAccounts,history:renderHistory,dashboard:renderDashboard,pendings:renderPendings,categories:renderCategories}[curView]; if(m) m();}
 
 function switchType(t){curType=t; selCat=null; selSub=null; $('#tExpense').classList.toggle('on',t==='expense'); $('#tIncome').classList.toggle('on',t==='income'); renderCatChips();}
 function renderCatChips(){
@@ -278,7 +318,7 @@ function renderCatChips(){
     c.appendChild(b);
   });
   renderSubChips();
-  if(!cats.length) c.innerHTML='<span class="muted" style="font-size:13px">No categories — create one in Categories tab.</span>';
+  if(!cats.length) c.innerHTML='<span class="muted" style="font-size:13px">No categories — create one under Accounts › Categories.</span>';
 }
 function renderSubChips(){
   const w=$('#subWrap'), s=$('#subChips');
@@ -297,16 +337,17 @@ function saveTxn(){
   const paise=toPaise($('#amt').value);
   if(!paise || isNaN(paise) || paise<=0){$('#addMsg').textContent='Enter a valid amount.'; return;}
   if(!selCat){$('#addMsg').textContent='Pick a category.'; return;}
+  if(!selAcc){$('#addMsg').textContent='Create an account first.'; return;}
   const cid=selSub||selCat;
   const d=$('#txnDate').value||todayISO();
   const note=$('#note').value.trim();
-  run(`INSERT INTO transactions (id,txn_date,amount,type,category_id,note,updated_at) VALUES (?,?,?,?,?,?,?)`,[uid(),d,paise,curType,cid,note,new Date().toISOString()]);
+  run(`INSERT INTO transactions (id,txn_date,amount,type,category_id,note,account_id,updated_at) VALUES (?,?,?,?,?,?,?,?)`,[uid(),d,paise,curType,cid,note,selAcc,new Date().toISOString()]);
   saveDB(); $('#amt').value=''; $('#note').value=''; $('#addMsg').textContent='Saved ✓'; setTimeout(()=>$('#addMsg').textContent='',1500);
   renderAll();
 }
 
 function setFilter(f){curFilter=f; histDays=50; ['All','Expense','Income'].forEach((k,i)=>{const id=['fAll','fExpense','fIncome'][i]; $('#'+id).classList.toggle('on', (['all','expense','income'][i]===f));}); renderHistory();}
-let CATS=new Map();function loadCats(){CATS=new Map(q(`SELECT * FROM categories`).map(c=>[c.id,c]));}
+let CATS=new Map(),ACC=new Map();function loadCats(){CATS=new Map(q(`SELECT * FROM categories`).map(c=>[c.id,c])); ACC=new Map(q(`SELECT * FROM accounts`).map(a=>[a.id,a]));}
 function catName(id){return CATS.get(id)||null;}
 function catPath(catId){const c=catName(catId); if(!c) return '—'; if(!c.parent_id) return c.name; const p=catName(c.parent_id); return p? `${p.name} › ${c.name}`:c.name;}
 function iconHtml(cat,size=16){const bg=cat.color||'#94a3b8'; const ch=cat.emoji? esc(cat.emoji) : esc((cat.name||'?')[0].toUpperCase()); if(cat.emoji) return `<span class="icon" style="background:${bg};font-size:${size}px">${ch}</span>`; return `<span class="icon" style="background:${bg};font-size:${Math.round(size*.75)}px">${ch}</span>`;}
@@ -335,7 +376,7 @@ function renderHistory(){
       const row=document.createElement('div'); row.className='item';
       const amtColor=r.type==='expense'?'var(--red)':'var(--green)';
       const amtPrefix=r.type==='expense'?'-':'+';
-      row.innerHTML=`${iconHtml(cat)}<div style="flex:1;min-width:0"><div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(catPath(r.category_id))}</div><div class="muted" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.txn_date)} • ${esc(r.note||'—')}</div></div><div style="text-align:right"><div style="font-weight:800;color:${amtColor}">${amtPrefix}${fmtPaise(r.amount)}</div><button class="btn sm" style="margin-top:4px;padding:4px 8px;font-size:11px" data-del="${r.id}">Delete</button></div>`;
+      row.innerHTML=`${iconHtml(cat)}<div style="flex:1;min-width:0"><div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(catPath(r.category_id))}</div><div class="muted" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.txn_date)} • ${accTag(r.account_id)}${esc(r.note||'—')}</div></div><div style="text-align:right"><div style="font-weight:800;color:${amtColor}">${amtPrefix}${fmtPaise(r.amount)}</div><button class="btn sm" style="margin-top:4px;padding:4px 8px;font-size:11px" data-del="${r.id}">Delete</button></div>`;
       cont.appendChild(row);
     });
   });
@@ -475,7 +516,7 @@ function addLoan(){
   const person=$('#loanPerson').value.trim(); if(!person){alert('Enter person name');return;}
   const paise=toPaise($('#loanAmt').value); if(!paise||paise<=0){alert('Enter amount');return;}
   const d=$('#loanDate').value||todayISO(); const kind=$('#loanKind').value; const note=$('#loanNote').value.trim();
-  run(`INSERT INTO loans (id,person,txn_date,amount,kind,note,updated_at) VALUES (?,?,?,?,?,?,?)`,[uid(),person,d,paise,kind,note,new Date().toISOString()]);
+  run(`INSERT INTO loans (id,person,txn_date,amount,kind,note,account_id,updated_at) VALUES (?,?,?,?,?,?,?,?)`,[uid(),person,d,paise,kind,note,$('#loanAcc').value||null,new Date().toISOString()]);
   saveDB(); $('#loanAmt').value=''; $('#loanNote').value='';
   renderPendings(); renderDashboard();
 }
@@ -561,11 +602,12 @@ function renderCategories(){
 
 // Nav
 function nav(name){curView=name;
-  ['add','history','dashboard','pendings','categories'].forEach(n=>{const v=$('#view-'+n); if(v) v.classList.toggle('hidden', n!==name); const b=$('#nav-'+n); if(b) b.classList.toggle('on', n===name);});
+  ['add','history','dashboard','pendings','accounts','categories'].forEach(n=>{const v=$('#view-'+n); if(v) v.classList.toggle('hidden', n!==name); const b=$('#nav-'+n); if(b) b.classList.toggle('on', n===name);});
   if(name==='history') renderHistory();
   if(name==='dashboard') renderDashboard();
   if(name==='pendings') renderPendings();
   if(name==='categories') renderCategories();
+  if(name==='accounts') renderAccounts();
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -584,6 +626,107 @@ function setupBackup(){
     try{ const test=new SQL.Database(new Uint8Array(buf)); test.exec('SELECT count(*) FROM categories'); test.close(); }catch(err){ alert('Invalid DB file'); return;}
     await idbPut(new Uint8Array(buf)); location.reload();
   };
+}
+
+// ---- Accounts ----
+let selAcc=localStorage.getItem('exp_last_acc')||'';
+function accTag(id){const a=ACC.get(id); return a? esc(a.name)+' • ' : '';}
+function activeAccs(){return [...ACC.values()].filter(a=>a.active&&!a.deleted_at).sort((a,b)=>a.name.localeCompare(b.name));}
+function balances(){
+  const A=q(`SELECT * FROM accounts WHERE deleted_at IS NULL ORDER BY active DESC, name COLLATE NOCASE`), B={};
+  A.forEach(a=>B[a.id]=a.opening||0);
+  q(`SELECT account_id a,type t,SUM(amount) s FROM transactions WHERE deleted_at IS NULL AND account_id IS NOT NULL GROUP BY a,t`).forEach(r=>{if(r.a in B) B[r.a]+= r.t==='income'? r.s : -r.s;});
+  q(`SELECT account_id a,kind k,SUM(amount) s FROM loans WHERE deleted_at IS NULL AND account_id IS NOT NULL GROUP BY a,k`).forEach(r=>{if(r.a in B) B[r.a]+= r.k==='returned'? r.s : -r.s;});
+  q(`SELECT from_id f,to_id t,SUM(amount) s FROM transfers WHERE deleted_at IS NULL GROUP BY f,t`).forEach(r=>{if(r.f in B) B[r.f]-=r.s; if(r.t in B) B[r.t]+=r.s;});
+  return {A,B};
+}
+function renderAccChips(){
+  const A=activeAccs(), w=$('#accChips'); if(!A.some(a=>a.id===selAcc)) selAcc=A[0]?A[0].id:'';
+  $('#noAcc').classList.toggle('hidden',A.length>0); w.innerHTML='';
+  A.forEach(a=>{const b=document.createElement('button'); b.className='chip'+(a.id===selAcc?' on':''); b.textContent=(a.emoji||'')+' '+a.name; b.onclick=()=>{selAcc=a.id; localStorage.setItem('exp_last_acc',selAcc); renderAccChips();}; w.appendChild(b);});
+  $('#accHint').textContent=selAcc? 'Balance: '+fmtPaise(balances().B[selAcc]||0) : '';
+  $('#loanAcc').innerHTML='<option value="">No account (do not track)</option>'+A.map(a=>`<option value="${a.id}" ${a.id===selAcc?'selected':''}>${esc((a.emoji||'')+' '+a.name)}</option>`).join('');
+}
+function renderAccounts(){
+  const {A,B}=balances(); $('#accTotal').textContent=fmtPaise(A.filter(a=>a.active).reduce((s,a)=>s+B[a.id],0));
+  const l=$('#accList'); l.innerHTML=A.length?'':'<div class="empty">No accounts yet. Tap “+ Account”.</div>';
+  A.forEach(a=>{const c=document.createElement('div'); c.className='card hrow'; c.style.opacity=a.active?1:.55;
+    c.innerHTML=`<span style="display:flex;gap:10px;align-items:center"><span style="font-size:26px">${esc(a.emoji||'🏦')}</span><span><b>${esc(a.name)}</b>${a.active?'':' <span class="badge red">Hidden</span>'}<div style="font-weight:800;color:${B[a.id]<0?'var(--red)':'var(--text)'}">${fmtPaise(B[a.id])}</div></span></span><span style="display:flex;gap:6px"><button class="btn sm" data-ae="${a.id}">Edit</button><button class="btn sm" data-ah="${a.id}">${a.active?'Hide':'Show'}</button></span>`;
+    l.appendChild(c);});
+  l.querySelectorAll('[data-ae]').forEach(b=>b.onclick=()=>openAcc(b.dataset.ae));
+  l.querySelectorAll('[data-ah]').forEach(b=>b.onclick=()=>{const a=ACC.get(b.dataset.ah); run(`UPDATE accounts SET active=?,updated_at=? WHERE id=?`,[a.active?0:1,new Date().toISOString(),a.id]); saveDB(); renderAll();});
+  const T=q(`SELECT * FROM transfers WHERE deleted_at IS NULL ORDER BY txn_date DESC, rowid DESC LIMIT 10`), tl=$('#trList');
+  tl.innerHTML=T.length? T.map(t=>`<div class="item" style="padding:8px 10px"><div style="flex:1;min-width:0"><div style="font-weight:700">${esc((ACC.get(t.from_id)||{}).name||'?')} → ${esc((ACC.get(t.to_id)||{}).name||'?')}</div><div class="muted" style="font-size:12px">${esc(t.txn_date)} • ${esc(t.note||'—')}</div></div><b>${fmtPaise(t.amount)}</b> <button class="btn sm" data-td="${t.id}">✕</button></div>`).join('') : '<div class="muted" style="font-size:13px">No transfers yet.</div>';
+  tl.querySelectorAll('[data-td]').forEach(b=>b.onclick=()=>delRow('transfers',b.dataset.td));
+}
+function openAcc(id){const a=id?ACC.get(id):null; $('#accId').value=id||''; $('#accName').value=a?a.name:''; $('#accOpen').value=a?(a.opening||0)/100:''; $('#accEmoji').value=a?(a.emoji||''):'🏦'; $('#accDlgTitle').textContent=a?'Edit account':'New account'; accDlg.showModal();}
+function saveAcc(){
+  const name=$('#accName').value.trim(); if(!name) return alert('Enter an account name');
+  const open=toPaise($('#accOpen').value||'0'); if(isNaN(open)) return alert('Opening balance must be a number');
+  const id=$('#accId').value, now=new Date().toISOString();
+  if([...ACC.values()].some(a=>!a.deleted_at&&a.id!==id&&a.name.toLowerCase()===name.toLowerCase())) return alert('An account with this name already exists');
+  const emoji=$('#accEmoji').value.trim()||'🏦';
+  if(id) run(`UPDATE accounts SET name=?,emoji=?,opening=?,updated_at=? WHERE id=?`,[name,emoji,open,now,id]);
+  else run(`INSERT INTO accounts (id,name,emoji,opening,active,updated_at) VALUES (?,?,?,?,1,?)`,[uid(),name,emoji,open,now]);
+  saveDB(); accDlg.close(); renderAll();
+}
+function openTr(){const A=activeAccs(); if(A.length<2) return alert('Create at least two accounts first.');
+  const o=A.map(a=>`<option value="${a.id}">${esc((a.emoji||'')+' '+a.name)}</option>`).join(''); $('#trFrom').innerHTML=o; $('#trTo').innerHTML=o; $('#trTo').selectedIndex=1; $('#trAmt').value=''; $('#trNote').value=''; $('#trDate').value=todayISO(); trDlg.showModal();}
+function saveTr(){const f=$('#trFrom').value,t=$('#trTo').value,p=toPaise($('#trAmt').value);
+  if(f===t) return alert('Pick two different accounts'); if(!p||isNaN(p)||p<=0) return alert('Enter a valid amount');
+  run(`INSERT INTO transfers (id,txn_date,amount,from_id,to_id,note,updated_at) VALUES (?,?,?,?,?,?,?)`,[uid(),$('#trDate').value||todayISO(),p,f,t,$('#trNote').value.trim(),new Date().toISOString()]);
+  saveDB(); trDlg.close(); renderAll();}
+
+// ---- Google Drive sync: private appDataFolder, one JSON file per device, newest updated_at wins ----
+const SYNC_TABLES=['categories','accounts','transactions','loans','transfers'], G_SCOPE='https://www.googleapis.com/auth/drive.appdata';
+let gTok=null,gExp=0,syncing=false;
+function DEV(){let d=localStorage.getItem('exp_device'); if(!d){d=uid(); localStorage.setItem('exp_device',d);} return d;}
+function syncMsg(t,bad){const e=$('#syncMsg'); e.textContent=t; e.style.color=bad?'var(--red)':'var(--muted)';}
+function updSync(){const d=localStorage.getItem('exp_last_sync'); $('#lastSync').textContent=d? 'Last synced: '+iso(new Date(d))+' '+new Date(d).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : 'Never synced';}
+function openSync(){$('#gcid').value=localStorage.getItem('exp_gcid')||''; syncMsg(''); updSync(); syncDlg.showModal();}
+function loadGIS(){return new Promise((ok,no)=>{ if(window.google&&google.accounts&&google.accounts.oauth2) return ok(); const s=document.createElement('script'); s.src='https://accounts.google.com/gsi/client'; s.onload=ok; s.onerror=()=>no(new Error('Could not load Google sign-in. Check your internet connection.')); document.head.appendChild(s);});}
+async function getToken(cid){
+  if(gTok&&Date.now()<gExp) return gTok; await loadGIS();
+  return new Promise((ok,no)=>{ google.accounts.oauth2.initTokenClient({client_id:cid,scope:G_SCOPE,
+    callback:r=>{ if(r.error) return no(new Error('Sign-in failed: '+r.error)); gTok=r.access_token; gExp=Date.now()+(r.expires_in-60)*1000; ok(gTok); },
+    error_callback:()=>no(new Error('Sign-in popup was closed or blocked.'))}).requestAccessToken(); });
+}
+async function gfetch(url,opt={}){const r=await fetch(url,{...opt,headers:{...(opt.headers||{}),Authorization:'Bearer '+gTok}});
+  if(r.status===401){gTok=null; throw new Error('Session expired. Tap Sync again.');} if(!r.ok) throw new Error('Google Drive error '+r.status+'. Check the setup steps.'); return r;}
+function snapshot(){const o={v:1,device:DEV(),at:new Date().toISOString(),t:{}}; SYNC_TABLES.forEach(t=>o.t[t]=q(`SELECT * FROM ${t}`)); return o;}
+function mergeRemote(o){
+  if(!o||o.v!==1||!o.t) return 0; let n=0;
+  for(const t of SYNC_TABLES){
+    const cols=q(`PRAGMA table_info(${t})`).map(c=>c.name), local=new Map(q(`SELECT id,updated_at FROM ${t}`).map(r=>[r.id,r.updated_at||'']));
+    for(const r of (o.t[t]||[])){
+      if(!r||typeof r.id!=='string') continue;
+      if(local.has(r.id)&&(r.updated_at||'')<=local.get(r.id)) continue;
+      const k=Object.keys(r).filter(c=>cols.includes(c));
+      db.run(`INSERT OR REPLACE INTO ${t} (${k.join(',')}) VALUES (${k.map(()=>'?').join(',')})`,k.map(c=>r[c])); n++;
+    }
+  }
+  return n;
+}
+async function doSync(){
+  if(syncing) return; const cid=$('#gcid').value.trim();
+  if(!cid) return syncMsg('Paste your Google Client ID first.',1);
+  if(!navigator.onLine) return syncMsg('You are offline. Try again when connected.',1);
+  localStorage.setItem('exp_gcid',cid); syncing=true; $('#syncGo').disabled=true;
+  try{
+    syncMsg('Signing in…'); await getToken(cid); syncMsg('Reading Drive…');
+    const me='device-'+DEV()+'.json', API='https://www.googleapis.com/drive/v3/files';
+    const list=((await (await gfetch(API+'?spaces=appDataFolder&pageSize=100&fields=files(id,name)')).json()).files)||[];
+    let merged=0; db.run('BEGIN');
+    try{ for(const f of list){ if(f.name===me||!/^device-[\w-]+\.json$/.test(f.name)) continue; merged+=mergeRemote(await (await gfetch(API+'/'+f.id+'?alt=media')).json()); } db.run('COMMIT'); }
+    catch(e){ db.run('ROLLBACK'); throw e; }
+    if(merged){ saveDB(); renderAll(); }
+    syncMsg('Uploading…'); const data=JSON.stringify(snapshot()), mine=list.find(f=>f.name===me);
+    if(mine) await gfetch('https://www.googleapis.com/upload/drive/v3/files/'+mine.id+'?uploadType=media',{method:'PATCH',headers:{'Content-Type':'application/json'},body:data});
+    else{ const b='b'+uid(); await gfetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{method:'POST',headers:{'Content-Type':'multipart/related; boundary='+b},body:`--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({name:me,parents:['appDataFolder']})}\r\n--${b}\r\nContent-Type: application/json\r\n\r\n${data}\r\n--${b}--`}); }
+    localStorage.setItem('exp_last_sync',new Date().toISOString()); updSync();
+    syncMsg(merged? 'Done. '+merged+' change(s) received.' : 'Done. Everything is up to date.');
+  }catch(e){ syncMsg(e.message||'Sync failed.',1); }
+  finally{ syncing=false; $('#syncGo').disabled=false; }
 }
 
 init();
