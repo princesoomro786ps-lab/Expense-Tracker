@@ -101,12 +101,14 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
       <div class="label">Amount</div>
       <div class="amountWrap"><span>Rs.</span><input id="amt" class="input" inputmode="decimal" placeholder="0.00" autocomplete="off"></div>
       <div style="height:10px"></div>
-      <div class="seg" role="tablist"><button id="tExpense" class="on" onclick="switchType('expense')">Expense</button><button id="tIncome" onclick="switchType('income')">Income</button></div>
+      <div class="seg" role="tablist"><button id="tExpense" class="on" onclick="switchType('expense')">Expense</button><button id="tIncome" onclick="switchType('income')">Income</button><button id="tTransfer" onclick="openTr()">Transfer</button></div>
       <div class="label">Account</div><div id="accChips" class="chips"></div><div id="accHint" class="muted" style="font-size:12px;margin:6px 2px 0"></div>
       <div id="noAcc" class="hidden empty" style="padding:12px;margin-top:8px">No account yet. <a href="#" onclick="nav('accounts');openAcc();return false" style="color:var(--teal2);font-weight:700">Create your first account</a></div>
       <div class="label">Category</div>
       <div id="catChips" class="chips"></div>
       <div id="subWrap" class="hidden"><div class="label">Sub-category</div><div id="subChips" class="chips"></div></div>
+      <div class="label">Merchant / client</div><input id="merchant" class="input" list="merchList" placeholder="e.g. Walmart, Salary" autocomplete="off"><datalist id="merchList"></datalist>
+      <div id="natRow" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px"><div class="chips"><button class="chip" id="nFixed" onclick="setNat('fixed')">Fixed</button><button class="chip" id="nVar" onclick="setNat('variable')">Variable</button></div><label class="muted" style="font-size:13px;display:flex;gap:6px;align-items:center"><input type="checkbox" id="taxDed"> Tax-deductible</label></div>
       <div class="grid2" style="margin-top:12px">
         <div><div class="label">Date</div><input id="txnDate" type="date" class="input"></div>
         <div><div class="label">Note</div><input id="note" class="input" placeholder="Optional"></div>
@@ -140,6 +142,12 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
     </div>
     <div class="card" style="margin-top:12px"><div class="hrow"><b>Trend</b><span class="muted" style="font-size:12px" id="trendHint"></span></div><div id="bars" class="barWrap"></div></div>
     <div class="card" style="margin-top:12px"><b>Breakdown</b><div id="breakdown" class="list" style="margin-top:10px"></div></div>
+    <div id="insExtra"></div>
+    <div class="card" style="margin-top:12px"><b>Compare periods</b>
+      <div class="chips" style="margin-top:8px"><button class="chip" onclick="presetCmp('week')">Week vs last</button><button class="chip" onclick="presetCmp('month')">Month vs last</button><button class="chip" onclick="presetCmp('quarter')">Quarter vs last</button><button class="chip" onclick="presetCmp('year')">Year vs last</button></div>
+      <div class="label">Period A</div><div class="grid2"><input id="cA1" type="date" class="input" onchange="runCmp()"><input id="cA2" type="date" class="input" onchange="runCmp()"></div>
+      <div class="label">Period B</div><div class="grid2"><input id="cB1" type="date" class="input" onchange="runCmp()"><input id="cB2" type="date" class="input" onchange="runCmp()"></div>
+      <div id="cmpOut" style="margin-top:10px"></div></div>
   </section>
 
   <!-- PENDINGS -->
@@ -150,25 +158,27 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
       <div><div class="k">Remaining</div><div id="pRem" style="font-weight:800;font-size:18px;margin-top:4px"></div></div>
     </div>
     <div class="card" style="margin-top:12px">
-      <b>Add Lent / Received</b>
+      <b>Add loan entry</b>
       <div class="grid2" style="margin-top:8px">
-        <input id="loanPerson" class="input" placeholder="Person name">
+        <input id="loanPerson" class="input" list="personList" placeholder="Person name" autocomplete="off"><datalist id="personList"></datalist>
         <input id="loanAmt" class="input" inputmode="decimal" placeholder="Amount Rs.">
       </div>
       <div class="grid2" style="margin-top:8px">
         <input id="loanDate" type="date" class="input">
-        <select id="loanKind" class="input"><option value="given">Lent</option><option value="returned">Received</option></select>
+        <select id="loanKind" class="input"><option value="given">I lent</option><option value="returned">I received back</option><option value="borrowed">I borrowed</option><option value="repaid">I repaid</option></select>
       </div>
       <input id="loanNote" class="input" placeholder="Note (optional)" style="margin-top:8px">
       <select id="loanAcc" class="input" style="margin-top:8px"></select>
       <button class="btn primary" style="width:100%;margin-top:10px" onclick="addLoan()">Add entry</button>
     </div>
+    <div id="netPeople" style="margin-top:12px"></div>
     <div id="pendingsList" class="list" style="margin-top:12px"></div>
+    <div class="label" id="owedHead"></div><div id="owedList" class="list"></div>
   </section>
 
   <!-- ACCOUNTS -->
   <section id="view-accounts" class="hidden">
-    <div class="card hero"><div class="k">Total balance</div><div id="accTotal" class="v">Rs. 0.00</div></div>
+    <div class="card hero"><div class="k">Net worth</div><div id="accTotal" class="v">Rs. 0.00</div><div class="chips"><span class="chip" id="accAssets"></span><span class="chip" id="accLiab"></span></div></div>
     <div class="row" style="margin-top:10px"><button class="btn primary" onclick="openAcc()">+ Account</button><button class="btn" onclick="openTr()">⇄ Transfer</button><button class="btn" onclick="nav('categories')">Categories</button></div>
     <div id="accList" class="list" style="margin-top:10px"></div>
     <div class="label">Recent transfers</div><div id="trList" class="list"></div>
@@ -186,7 +196,7 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 <nav class="nav">
   <button id="nav-add" class="on" onclick="nav('add')"><b>＋</b>Add</button>
   <button id="nav-history" onclick="nav('history')"><b>◧</b>History</button>
-  <button id="nav-dashboard" onclick="nav('dashboard')"><b>◰</b>Dashboard</button>
+  <button id="nav-dashboard" onclick="nav('dashboard')"><b>◰</b>Insights</button>
   <button id="nav-pendings" onclick="nav('pendings')"><b>⇄</b>Pendings</button>
   <button id="nav-accounts" onclick="nav('accounts')"><b>◎</b>Accounts</button>
 </nav>
@@ -210,7 +220,8 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 
 <dialog id="accDlg"><div class="dh"><span id="accDlgTitle">New account</span><button class="btn sm" onclick="accDlg.close()">✕</button></div><div class="db">
   <input id="accName" class="input" placeholder="Name (e.g. Cash, HBL Bank, JazzCash)" maxlength="24">
-  <div class="label">Opening balance (Rs.)</div><input id="accOpen" class="input" inputmode="decimal" placeholder="0">
+  <div class="label">Type</div><select id="accKind" class="input"><option value="cash">Cash</option><option value="bank">Bank</option><option value="wallet">Wallet (JazzCash, Easypaisa)</option><option value="card">Credit card</option></select>
+  <div class="label">Opening balance (Rs.). For a credit card, enter the amount you owe.</div><input id="accOpen" class="input" inputmode="decimal" placeholder="0">
   <div class="label">Emoji</div><input id="accEmoji" class="input" maxlength="4">
   <div class="chips" style="margin-top:8px"><button class="chip" onclick="accEmoji.value='💵'">💵</button><button class="chip" onclick="accEmoji.value='🏦'">🏦</button><button class="chip" onclick="accEmoji.value='📱'">📱</button><button class="chip" onclick="accEmoji.value='💳'">💳</button><button class="chip" onclick="accEmoji.value='👛'">👛</button><button class="chip" onclick="accEmoji.value='🪙'">🪙</button></div>
   <input type="hidden" id="accId"><div class="row" style="margin-top:12px"><button class="btn" onclick="accDlg.close()">Cancel</button><button class="btn primary" onclick="saveAcc()">Save</button></div></div></dialog>
@@ -226,6 +237,23 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
   <div class="label">Google Client ID</div><input id="gcid" class="input" placeholder="xxxx.apps.googleusercontent.com" autocomplete="off" autocapitalize="off" spellcheck="false">
   <button id="syncGo" class="btn primary" style="width:100%;margin-top:12px;padding:12px" onclick="doSync()">Sync now</button>
   <div id="syncMsg" class="muted" style="font-size:13px;margin-top:10px;min-height:18px"></div><div id="lastSync" class="muted" style="font-size:12px;margin-top:4px"></div></div></dialog>
+
+<dialog id="loanDlg"><div class="dh"><span>Edit loan entry</span><button class="btn sm" onclick="loanDlg.close()">✕</button></div><div class="db">
+  <input type="hidden" id="leId"><div class="label">Person</div><input id="lePerson" class="input" list="personList" autocomplete="off">
+  <div class="label">Type</div><select id="leKind" class="input"><option value="given">I lent</option><option value="returned">I received back</option><option value="borrowed">I borrowed</option><option value="repaid">I repaid</option></select>
+  <div class="label">Amount (Rs.)</div><input id="leAmt" class="input" inputmode="decimal">
+  <div class="grid2" style="margin-top:8px"><input id="leDate" type="date" class="input"><select id="leAcc" class="input"></select></div>
+  <input id="leNote" class="input" placeholder="Note (optional)" style="margin-top:8px">
+  <div class="row" style="margin-top:12px"><button class="btn" onclick="loanDlg.close()">Cancel</button><button class="btn primary" onclick="saveLoanEdit()">Save</button></div></div></dialog>
+
+<dialog id="txDlg"><div class="dh"><span id="teTitle">Edit entry</span><button class="btn sm" onclick="txDlg.close()">✕</button></div><div class="db">
+  <input type="hidden" id="teId"><div class="label">Amount (Rs.)</div><input id="teAmt" class="input" inputmode="decimal">
+  <div class="grid2" style="margin-top:8px"><input id="teDate" type="date" class="input"><select id="teAcc" class="input"></select></div>
+  <div class="label">Category</div><select id="teCat" class="input"></select>
+  <div class="label">Merchant / client</div><input id="teMerch" class="input" list="merchList" autocomplete="off">
+  <input id="teNote" class="input" placeholder="Note (optional)" style="margin-top:8px">
+  <div id="teNatRow" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px"><select id="teNat" class="input" style="margin:0"><option value="">Fixed / Variable: none</option><option value="fixed">Fixed</option><option value="variable">Variable</option></select><label class="muted" style="font-size:13px;display:flex;gap:6px;align-items:center;white-space:nowrap"><input type="checkbox" id="teTax"> Tax-deductible</label></div>
+  <div class="row" style="margin-top:12px"><button class="btn" onclick="txDlg.close()">Cancel</button><button class="btn primary" onclick="saveTxEdit()">Save</button></div></div></dialog>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
 <script>
@@ -259,6 +287,7 @@ function ensureSchema(){
   db.run(`CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, name TEXT, emoji TEXT, opening INTEGER, active INTEGER, updated_at TEXT, deleted_at TEXT)`);
   db.run(`CREATE TABLE IF NOT EXISTS transfers (id TEXT PRIMARY KEY, txn_date TEXT, amount INTEGER, from_id TEXT, to_id TEXT, note TEXT, updated_at TEXT, deleted_at TEXT)`);
   ['transactions','loans'].forEach(t=>{ if(!q(`PRAGMA table_info(${t})`).some(c=>c.name==='account_id')) db.run(`ALTER TABLE ${t} ADD COLUMN account_id TEXT`); });
+  [['transactions','merchant TEXT'],['transactions','nature TEXT'],['transactions','tax_ded INTEGER'],['transactions','txn_time TEXT'],['accounts','kind TEXT'],['loans','txn_time TEXT']].forEach(([t,d])=>{ if(!q(`PRAGMA table_info(${t})`).some(x=>x.name===d.split(' ')[0])) db.run(`ALTER TABLE ${t} ADD COLUMN ${d}`); });
 }
 function needSeed(){const r=q(`SELECT count(*) as c FROM categories WHERE deleted_at IS NULL`); return (r[0]?.c||0)===0;}
 function seed(){
@@ -302,12 +331,12 @@ async function init(){
   $('#txnDate').value=todayISO();
   $('#loanDate').value=todayISO();
   buildEmojiGrid(); buildSwatches();
-  switchType('expense'); renderAll(); setupBackup(); updateBk(); if(navigator.storage&&navigator.storage.persist) navigator.storage.persist();
+  switchType('expense'); renderAll(); setupBackup(); updateBk(); presetCmp('month'); if(navigator.storage&&navigator.storage.persist) navigator.storage.persist();
   if('serviceWorker' in navigator) try{navigator.serviceWorker.register('sw.js');}catch{}
 }
-function renderAll(){renderCatChips(); renderAccChips(); const m={accounts:renderAccounts,history:renderHistory,dashboard:renderDashboard,pendings:renderPendings,categories:renderCategories}[curView]; if(m) m();}
+function renderAll(){renderCatChips(); renderAccChips(); fillMerch(); fillPersons(); const m={accounts:renderAccounts,history:renderHistory,dashboard:renderDashboard,pendings:renderPendings,categories:renderCategories}[curView]; if(m) m();}
 
-function switchType(t){curType=t; selCat=null; selSub=null; $('#tExpense').classList.toggle('on',t==='expense'); $('#tIncome').classList.toggle('on',t==='income'); renderCatChips();}
+function switchType(t){curType=t; $('#natRow').classList.toggle('hidden',t!=='expense'); if(t!=='expense') resetNat(); selCat=null; selSub=null; $('#tExpense').classList.toggle('on',t==='expense'); $('#tIncome').classList.toggle('on',t==='income'); renderCatChips();}
 function renderCatChips(){
   const cats=q(`SELECT * FROM categories WHERE kind=? AND parent_id IS NULL AND active=1 AND deleted_at IS NULL ORDER BY name`,[curType]);
   const c=$('#catChips'); c.innerHTML='';
@@ -341,8 +370,8 @@ function saveTxn(){
   const cid=selSub||selCat;
   const d=$('#txnDate').value||todayISO();
   const note=$('#note').value.trim();
-  run(`INSERT INTO transactions (id,txn_date,amount,type,category_id,note,account_id,updated_at) VALUES (?,?,?,?,?,?,?,?)`,[uid(),d,paise,curType,cid,note,selAcc,new Date().toISOString()]);
-  saveDB(); $('#amt').value=''; $('#note').value=''; $('#addMsg').textContent='Saved ✓'; setTimeout(()=>$('#addMsg').textContent='',1500);
+  run(`INSERT INTO transactions (id,txn_date,amount,type,category_id,note,account_id,merchant,nature,tax_ded,txn_time,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,[uid(),d,paise,curType,cid,note,selAcc,$('#merchant').value.trim(),curType==='expense'?curNat:'',($('#taxDed').checked&&curType==='expense')?1:0,new Date().toTimeString().slice(0,5),new Date().toISOString()]);
+  saveDB(); $('#amt').value=''; $('#note').value=''; resetNat(); $('#addMsg').textContent='Saved ✓'; setTimeout(()=>$('#addMsg').textContent='',1500);
   renderAll();
 }
 
@@ -355,7 +384,7 @@ function renderHistory(){
   const qq=($('#q').value||'').toLowerCase();
   let rows=q(`SELECT t.*, c.name as cname, c.parent_id, c.emoji, c.color FROM transactions t LEFT JOIN categories c ON c.id=t.category_id WHERE t.deleted_at IS NULL ORDER BY t.txn_date DESC, t.rowid DESC`);
   if(curFilter!=='all') rows=rows.filter(r=>r.type===curFilter);
-  if(qq) rows=rows.filter(r=> (r.note||'').toLowerCase().includes(qq) || catPath(r.category_id).toLowerCase().includes(qq) || (r.txn_date||'').includes(qq));
+  if(qq) rows=rows.filter(r=> (r.note||'').toLowerCase().includes(qq) || (r.merchant||'').toLowerCase().includes(qq) || catPath(r.category_id).toLowerCase().includes(qq) || (r.txn_date||'').includes(qq));
   // group by date
   const groups={}; rows.forEach(r=>{(groups[r.txn_date]=groups[r.txn_date]||[]).push(r);});
   const cont=$('#historyList'); cont.innerHTML='';
@@ -376,12 +405,13 @@ function renderHistory(){
       const row=document.createElement('div'); row.className='item';
       const amtColor=r.type==='expense'?'var(--red)':'var(--green)';
       const amtPrefix=r.type==='expense'?'-':'+';
-      row.innerHTML=`${iconHtml(cat)}<div style="flex:1;min-width:0"><div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(catPath(r.category_id))}</div><div class="muted" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.txn_date)} • ${accTag(r.account_id)}${esc(r.note||'—')}</div></div><div style="text-align:right"><div style="font-weight:800;color:${amtColor}">${amtPrefix}${fmtPaise(r.amount)}</div><button class="btn sm" style="margin-top:4px;padding:4px 8px;font-size:11px" data-del="${r.id}">Delete</button></div>`;
+      row.innerHTML=`${iconHtml(cat)}<div style="flex:1;min-width:0"><div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(catPath(r.category_id))}</div><div class="muted" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.txn_date)}${r.txn_time?' '+esc(r.txn_time):''} • ${accTag(r.account_id)}${r.merchant?esc(r.merchant)+' • ':''}${r.nature?(r.nature==='fixed'?'Fixed':'Variable')+' • ':''}${esc(r.note||'—')}</div></div><div style="text-align:right"><div style="font-weight:800;color:${amtColor}">${amtPrefix}${fmtPaise(r.amount)}</div><button class="btn sm" style="margin-top:4px;padding:4px 8px;font-size:11px" data-del="${r.id}">Delete</button> <button class="btn sm" style="margin-top:4px;padding:4px 8px;font-size:11px" data-txedit="${r.id}">Edit</button></div>`;
       cont.appendChild(row);
     });
   });
   if(dates.length>histDays){const m=document.createElement('button'); m.className='btn'; m.style.cssText='width:100%;margin-top:10px'; m.textContent='Load more'; m.onclick=()=>{histDays+=50; renderHistory();}; cont.appendChild(m);}
   cont.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>delRow('transactions',b.getAttribute('data-del')));
+  cont.querySelectorAll('[data-txedit]').forEach(b=>b.onclick=()=>openTxEdit(b.dataset.txedit));
 }
 
 function toast(msg,undo){const t=$('#toast'); t.innerHTML=esc(msg)+' <button class="btn sm" id="undoBtn">Undo</button>'; t.classList.remove('hidden'); $('#undoBtn').onclick=()=>{undo(); t.classList.add('hidden');}; clearTimeout(toast.t); toast.t=setTimeout(()=>t.classList.add('hidden'),6000);}
@@ -508,20 +538,20 @@ function renderDashboard(){
     div.innerHTML=`<div class="hrow" style="width:100%"><span style="display:flex;gap:8px;align-items:center">${iconHtml(e.top,14)}<b>${esc(e.top.name)}</b> <span class="muted" style="font-size:12px">${pct}%</span></span><b style="color:var(--red)">${fmtPaise(e.total)}</b></div><div class="progress" style="width:100%;margin-top:8px"><i style="width:${pct}%;background:${e.top.color||'var(--teal)'}"></i></div><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${subsHtml}</div>`;
     bd.appendChild(div);
   });
-  // also income breakdown small?
+  renderInsights(sISO,eISO,start,end,tx,exp,inc); runCmp();
 }
 
 // Pendings
 function addLoan(){
-  const person=$('#loanPerson').value.trim(); if(!person){alert('Enter person name');return;}
+  const person=canonPerson($('#loanPerson').value); if(!person){alert('Enter person name');return;}
   const paise=toPaise($('#loanAmt').value); if(!paise||paise<=0){alert('Enter amount');return;}
   const d=$('#loanDate').value||todayISO(); const kind=$('#loanKind').value; const note=$('#loanNote').value.trim();
-  run(`INSERT INTO loans (id,person,txn_date,amount,kind,note,account_id,updated_at) VALUES (?,?,?,?,?,?,?,?)`,[uid(),person,d,paise,kind,note,$('#loanAcc').value||null,new Date().toISOString()]);
+  run(`INSERT INTO loans (id,person,txn_date,amount,kind,note,account_id,txn_time,updated_at) VALUES (?,?,?,?,?,?,?,?,?)`,[uid(),person,d,paise,kind,note,$('#loanAcc').value||null,new Date().toTimeString().slice(0,5),new Date().toISOString()]);
   saveDB(); $('#loanAmt').value=''; $('#loanNote').value='';
   renderPendings(); renderDashboard();
 }
 function renderPendings(){
-  const rows=q(`SELECT * FROM loans WHERE deleted_at IS NULL ORDER BY person COLLATE NOCASE, txn_date ASC`);
+  const rows=q(`SELECT * FROM loans WHERE deleted_at IS NULL AND kind IN ('given','returned') ORDER BY person COLLATE NOCASE, txn_date ASC`);
   const byPerson={};
   rows.forEach(r=>{(byPerson[r.person]=byPerson[r.person]||[]).push(r);});
   let totalLent=0,totalRec=0;
@@ -545,10 +575,12 @@ function renderPendings(){
     <div class="grid2" style="margin-top:8px;font-size:13px"><div>Lent <b style="color:var(--red)">${fmtPaise(lent)}</b></div><div>Received <b style="color:var(--green)">${fmtPaise(rec)}</b></div></div>
     <div style="margin-top:6px;font-size:13px">Remaining <b style="color:var(--red)">${fmtPaise(left)}</b>${over?` · <b style="color:var(--green)">Overpaid ${fmtPaise(over)}</b>`:''}</div>
     <div class="progress" style="margin-top:8px"><i style="width:${pct}%"></i></div>
-    <div class="list" style="margin-top:10px">${list.map(e=>`<div class="item" style="padding:8px 10px"><div style="flex:1"><div style="font-size:12px" class="muted">${esc(e.txn_date)} • <b style="color:${e.kind==='given'?'var(--red)':'var(--green)'}">${e.kind==='given'?'Lent':'Received'}</b> ${esc(e.note||'')}</div></div><div style="font-weight:800;color:${e.kind==='given'?'var(--red)':'var(--green)'}">${e.kind==='given'?'-':'+'}${fmtPaise(e.amount)}</div><button class="btn sm" data-loan-del="${e.id}" style="margin-left:6px">✕</button></div>`).join('')}</div>`;
+    <div class="list" style="margin-top:10px">${list.map(e=>`<div class="item" style="padding:8px 10px"><div style="flex:1"><div style="font-size:12px" class="muted">${esc(e.txn_date)}${e.txn_time?' '+esc(e.txn_time):''} • ${accTag(e.account_id)}<b style="color:${e.kind==='given'?'var(--red)':'var(--green)'}">${e.kind==='given'?'Lent':'Received'}</b> ${esc(e.note||'')}</div></div><div style="font-weight:800;color:${e.kind==='given'?'var(--red)':'var(--green)'}">${e.kind==='given'?'-':'+'}${fmtPaise(e.amount)}</div><button class="btn sm" data-loan-edit="${e.id}" style="margin-left:6px">Edit</button><button class="btn sm" data-loan-del="${e.id}" style="margin-left:4px">✕</button></div>`).join('')}</div>`;
     cont.appendChild(card);
   });
   cont.querySelectorAll('[data-loan-del]').forEach(b=>b.onclick=()=>delRow('loans',b.getAttribute('data-loan-del')));
+  cont.querySelectorAll('[data-loan-edit]').forEach(b=>b.onclick=()=>openLoanEdit(b.dataset.loanEdit));
+  renderOwed();
 }
 
 // Categories
@@ -636,7 +668,7 @@ function balances(){
   const A=q(`SELECT * FROM accounts WHERE deleted_at IS NULL ORDER BY active DESC, name COLLATE NOCASE`), B={};
   A.forEach(a=>B[a.id]=a.opening||0);
   q(`SELECT account_id a,type t,SUM(amount) s FROM transactions WHERE deleted_at IS NULL AND account_id IS NOT NULL GROUP BY a,t`).forEach(r=>{if(r.a in B) B[r.a]+= r.t==='income'? r.s : -r.s;});
-  q(`SELECT account_id a,kind k,SUM(amount) s FROM loans WHERE deleted_at IS NULL AND account_id IS NOT NULL GROUP BY a,k`).forEach(r=>{if(r.a in B) B[r.a]+= r.k==='returned'? r.s : -r.s;});
+  q(`SELECT account_id a,kind k,SUM(amount) s FROM loans WHERE deleted_at IS NULL AND account_id IS NOT NULL GROUP BY a,k`).forEach(r=>{if(r.a in B) B[r.a]+= (r.k==='returned'||r.k==='borrowed')? r.s : -r.s;});
   q(`SELECT from_id f,to_id t,SUM(amount) s FROM transfers WHERE deleted_at IS NULL GROUP BY f,t`).forEach(r=>{if(r.f in B) B[r.f]-=r.s; if(r.t in B) B[r.t]+=r.s;});
   return {A,B};
 }
@@ -648,10 +680,10 @@ function renderAccChips(){
   $('#loanAcc').innerHTML='<option value="">No account (do not track)</option>'+A.map(a=>`<option value="${a.id}" ${a.id===selAcc?'selected':''}>${esc((a.emoji||'')+' '+a.name)}</option>`).join('');
 }
 function renderAccounts(){
-  const {A,B}=balances(); $('#accTotal').textContent=fmtPaise(A.filter(a=>a.active).reduce((s,a)=>s+B[a.id],0));
+  const {A,B}=balances(); const nw=netWorth(); $('#accTotal').textContent=fmtPaise(nw.net); $('#accAssets').textContent='Assets '+fmtPaise(nw.assets); $('#accLiab').textContent='Liabilities '+fmtPaise(nw.liab);
   const l=$('#accList'); l.innerHTML=A.length?'':'<div class="empty">No accounts yet. Tap “+ Account”.</div>';
   A.forEach(a=>{const c=document.createElement('div'); c.className='card hrow'; c.style.opacity=a.active?1:.55;
-    c.innerHTML=`<span style="display:flex;gap:10px;align-items:center"><span style="font-size:26px">${esc(a.emoji||'🏦')}</span><span><b>${esc(a.name)}</b>${a.active?'':' <span class="badge red">Hidden</span>'}<div style="font-weight:800;color:${B[a.id]<0?'var(--red)':'var(--text)'}">${fmtPaise(B[a.id])}</div></span></span><span style="display:flex;gap:6px"><button class="btn sm" data-ae="${a.id}">Edit</button><button class="btn sm" data-ah="${a.id}">${a.active?'Hide':'Show'}</button></span>`;
+    c.innerHTML=`<span style="display:flex;gap:10px;align-items:center"><span style="font-size:26px">${esc(a.emoji||'🏦')}</span><span><b>${esc(a.name)}</b> <span class="muted" style="font-size:12px">${({cash:'Cash',bank:'Bank',wallet:'Wallet',card:'Credit card'})[a.kind]||''}</span>${a.active?'':' <span class="badge red">Hidden</span>'}<div style="font-weight:800;color:${B[a.id]<0?'var(--red)':'var(--text)'}">${fmtPaise(B[a.id])}</div></span></span><span style="display:flex;gap:6px"><button class="btn sm" data-ae="${a.id}">Edit</button><button class="btn sm" data-ah="${a.id}">${a.active?'Hide':'Show'}</button></span>`;
     l.appendChild(c);});
   l.querySelectorAll('[data-ae]').forEach(b=>b.onclick=()=>openAcc(b.dataset.ae));
   l.querySelectorAll('[data-ah]').forEach(b=>b.onclick=()=>{const a=ACC.get(b.dataset.ah); run(`UPDATE accounts SET active=?,updated_at=? WHERE id=?`,[a.active?0:1,new Date().toISOString(),a.id]); saveDB(); renderAll();});
@@ -659,15 +691,16 @@ function renderAccounts(){
   tl.innerHTML=T.length? T.map(t=>`<div class="item" style="padding:8px 10px"><div style="flex:1;min-width:0"><div style="font-weight:700">${esc((ACC.get(t.from_id)||{}).name||'?')} → ${esc((ACC.get(t.to_id)||{}).name||'?')}</div><div class="muted" style="font-size:12px">${esc(t.txn_date)} • ${esc(t.note||'—')}</div></div><b>${fmtPaise(t.amount)}</b> <button class="btn sm" data-td="${t.id}">✕</button></div>`).join('') : '<div class="muted" style="font-size:13px">No transfers yet.</div>';
   tl.querySelectorAll('[data-td]').forEach(b=>b.onclick=()=>delRow('transfers',b.dataset.td));
 }
-function openAcc(id){const a=id?ACC.get(id):null; $('#accId').value=id||''; $('#accName').value=a?a.name:''; $('#accOpen').value=a?(a.opening||0)/100:''; $('#accEmoji').value=a?(a.emoji||''):'🏦'; $('#accDlgTitle').textContent=a?'Edit account':'New account'; accDlg.showModal();}
+function openAcc(id){const a=id?ACC.get(id):null; $('#accId').value=id||''; $('#accName').value=a?a.name:''; $('#accKind').value=a?(a.kind||'bank'):'bank'; $('#accOpen').value=a?(a.kind==='card'?Math.abs(a.opening||0):(a.opening||0))/100:''; $('#accEmoji').value=a?(a.emoji||''):'🏦'; $('#accDlgTitle').textContent=a?'Edit account':'New account'; accDlg.showModal();}
 function saveAcc(){
   const name=$('#accName').value.trim(); if(!name) return alert('Enter an account name');
-  const open=toPaise($('#accOpen').value||'0'); if(isNaN(open)) return alert('Opening balance must be a number');
+  let open=toPaise($('#accOpen').value||'0'); if(isNaN(open)) return alert('Opening balance must be a number');
+  const kind=$('#accKind').value; if(kind==='card') open=-Math.abs(open);
   const id=$('#accId').value, now=new Date().toISOString();
   if([...ACC.values()].some(a=>!a.deleted_at&&a.id!==id&&a.name.toLowerCase()===name.toLowerCase())) return alert('An account with this name already exists');
   const emoji=$('#accEmoji').value.trim()||'🏦';
-  if(id) run(`UPDATE accounts SET name=?,emoji=?,opening=?,updated_at=? WHERE id=?`,[name,emoji,open,now,id]);
-  else run(`INSERT INTO accounts (id,name,emoji,opening,active,updated_at) VALUES (?,?,?,?,1,?)`,[uid(),name,emoji,open,now]);
+  if(id) run(`UPDATE accounts SET name=?,emoji=?,opening=?,kind=?,updated_at=? WHERE id=?`,[name,emoji,open,kind,now,id]);
+  else run(`INSERT INTO accounts (id,name,emoji,opening,kind,active,updated_at) VALUES (?,?,?,?,?,1,?)`,[uid(),name,emoji,open,kind,now]);
   saveDB(); accDlg.close(); renderAll();
 }
 function openTr(){const A=activeAccs(); if(A.length<2) return alert('Create at least two accounts first.');
@@ -727,6 +760,110 @@ async function doSync(){
     syncMsg(merged? 'Done. '+merged+' change(s) received.' : 'Done. Everything is up to date.');
   }catch(e){ syncMsg(e.message||'Sync failed.',1); }
   finally{ syncing=false; $('#syncGo').disabled=false; }
+}
+
+// ---- Entry helpers ----
+let curNat='';
+function setNat(n){curNat=curNat===n?'':n; $('#nFixed').classList.toggle('on',curNat==='fixed'); $('#nVar').classList.toggle('on',curNat==='variable');}
+function resetNat(){curNat=''; $('#nFixed').classList.remove('on'); $('#nVar').classList.remove('on'); $('#taxDed').checked=false; $('#merchant').value='';}
+function fillMerch(){$('#merchList').innerHTML=q(`SELECT merchant m,COUNT(*) c FROM transactions WHERE deleted_at IS NULL AND merchant IS NOT NULL AND merchant<>'' GROUP BY m ORDER BY c DESC LIMIT 40`).map(r=>`<option value="${esc(r.m)}">`).join('');}
+
+// ---- Net worth and money I owe ----
+function netWorth(){
+  const {A,B}=balances(); let assets=0,liab=0;
+  A.filter(a=>a.active).forEach(a=>{const v=B[a.id]; if(v>=0) assets+=v; else liab+=-v;});
+  const by={}; q(`SELECT person,kind,SUM(amount) s FROM loans WHERE deleted_at IS NULL GROUP BY person,kind`).forEach(r=>{(by[r.person]=by[r.person]||{})[r.kind]=r.s;});
+  Object.values(by).forEach(o=>{assets+=Math.max(0,(o.given||0)-(o.returned||0)); liab+=Math.max(0,(o.borrowed||0)-(o.repaid||0));});
+  return {assets,liab,net:assets-liab};
+}
+function renderOwed(){
+  const rows=q(`SELECT * FROM loans WHERE deleted_at IS NULL AND kind IN ('borrowed','repaid') ORDER BY person COLLATE NOCASE, txn_date`), by={};
+  rows.forEach(r=>(by[r.person]=by[r.person]||[]).push(r));
+  const el=$('#owedList'); el.innerHTML=''; let tot=0;
+  Object.keys(by).forEach(p=>{
+    const l=by[p], b=sumBy(l.filter(x=>x.kind==='borrowed'),x=>x.amount), r=sumBy(l.filter(x=>x.kind==='repaid'),x=>x.amount), left=Math.max(0,b-r); tot+=left;
+    const c=document.createElement('div'); c.className='card';
+    c.innerHTML=`<div class="hrow"><b>${esc(p)}</b><span class="muted" style="font-size:12px">${left?'You owe':'Settled'}</span></div><div class="grid2" style="margin-top:8px;font-size:13px"><div>Borrowed <b style="color:var(--green)">${fmtPaise(b)}</b></div><div>Repaid <b style="color:var(--red)">${fmtPaise(r)}</b></div></div><div style="margin-top:6px;font-size:13px">You owe <b style="color:var(--red)">${fmtPaise(left)}</b></div><div class="list" style="margin-top:10px">${l.map(e=>`<div class="item" style="padding:8px 10px"><div style="flex:1" class="muted"><span style="font-size:12px">${esc(e.txn_date)}${e.txn_time?' '+esc(e.txn_time):''} • ${accTag(e.account_id)}<b>${e.kind==='borrowed'?'Borrowed':'Repaid'}</b> ${esc(e.note||'')}</span></div><b>${fmtPaise(e.amount)}</b> <button class="btn sm" data-loan-edit="${e.id}">Edit</button> <button class="btn sm" data-loan-del="${e.id}">✕</button></div>`).join('')}</div>`;
+    el.appendChild(c);
+  });
+  $('#owedHead').textContent=rows.length? 'Money I owe • '+fmtPaise(tot) : '';
+  el.querySelectorAll('[data-loan-del]').forEach(b=>b.onclick=()=>delRow('loans',b.dataset.loanDel));
+  el.querySelectorAll('[data-loan-edit]').forEach(b=>b.onclick=()=>openLoanEdit(b.dataset.loanEdit)); renderNet(); fillPersons();
+}
+
+// ---- Insights ----
+const sumBy=(a,f)=>a.reduce((s,x)=>s+f(x),0), kfmt=p=>(p/100).toLocaleString('en-IN',{maximumFractionDigits:0});
+function catTotals(ex){const m={}; ex.forEach(t=>{const c=catName(t.category_id); if(!c) return; const id=c.parent_id||c.id, top=catName(id); if(!top) return; (m[id]=m[id]||{id,name:top.name,color:top.color||'#94a3b8',total:0}).total+=t.amount;}); return Object.values(m).sort((a,b)=>b.total-a.total);}
+function card2(title,body){return `<div class="card" style="margin-top:12px"><b>${title}</b><div style="margin-top:10px">${body}</div></div>`;}
+function stat(k,v,c){return `<div><div class="muted" style="font-size:12px">${k}</div><div style="font-weight:800;font-size:16px${c?';color:'+c:''}">${v}</div></div>`;}
+function renderInsights(sISO,eISO,start,end,tx,exp,inc){
+  const ex=tx.filter(t=>t.type==='expense'), now=new Date(), last=end<now?end:now;
+  const days=start>now?1:Math.max(1,Math.floor((last-start)/864e5)+1);
+  offset--; const pr=rangeFor(); offset++;
+  const prev=q(`SELECT COALESCE(SUM(amount),0) s FROM transactions WHERE deleted_at IS NULL AND type='expense' AND txn_date BETWEEN ? AND ?`,[iso(pr.start),iso(pr.end)])[0].s;
+  const ch=prev? Math.round((exp-prev)/prev*100):null, net=inc-exp, nat=n=>sumBy(ex.filter(t=>t.nature===n),t=>t.amount);
+  let h=card2('Cash flow & velocity','<div class="grid2" style="gap:12px">'+stat('Net cash flow',fmtPaise(net),net<0?'var(--red)':'var(--green)')+stat('Savings rate',inc?Math.round(net/inc*100)+'%':'—')+stat('Daily average',fmtPaise(Math.round(exp/days)))+stat('vs previous period',ch===null?'—':(ch>0?'+':'')+ch+'%',ch>0?'var(--red)':'var(--green)')+stat('Fixed expenses',fmtPaise(nat('fixed')))+stat('Variable expenses',fmtPaise(nat('variable')))+stat('Untagged',fmtPaise(exp-nat('fixed')-nat('variable')))+stat('Tax-deductible',fmtPaise(sumBy(ex.filter(t=>t.tax_ded),t=>t.amount)))+'</div>');
+  const ct=catTotals(ex), PAL=['#14b8a6','#f97316','#a855f7','#0ea5e9','#eab308','#ec4899'];
+  if(ct.length){
+    let off=25,segs='',lg=''; const top=ct.slice(0,6), rest=exp-sumBy(top,c=>c.total), seg=(p,col)=>{segs+=`<circle cx="21" cy="21" r="15.9155" fill="none" style="stroke:${col}" stroke-width="6" stroke-dasharray="${p} ${100-p}" stroke-dashoffset="${off}"/>`; off-=p;};
+    const leg=(n,p,t,col)=>`<div class="hrow" style="font-size:13px"><span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${col};margin-right:6px"></i>${esc(n)}</span><span><b>${Math.round(p)}%</b> <span class="muted">${kfmt(t)}</span></span></div>`;
+    top.forEach((c,i)=>{const p=c.total/exp*100, col=c.color||PAL[i]; seg(p,col); lg+=leg(c.name,p,c.total,col);});
+    if(rest>0){const p=rest/exp*100; seg(p,'#94a3b8'); lg+=leg('Others',p,rest,'#94a3b8');}
+    h+=card2('Category share (Rs.)',`<div style="display:flex;gap:14px;align-items:center"><svg viewBox="0 0 42 42" width="120" height="120" style="flex:none"><circle cx="21" cy="21" r="15.9155" fill="none" style="stroke:var(--line)" stroke-width="6"/>${segs}</svg><div style="flex:1;display:flex;flex-direction:column;gap:6px">${lg}</div></div>`);
+  }
+  const bl=balances(), al=bl.A.filter(a=>a.active), mv={}, mk=id=>mv[id]=mv[id]||{i:0,e:0,tr:0};
+  q(`SELECT account_id a,type t,SUM(amount) s FROM transactions WHERE deleted_at IS NULL AND account_id IS NOT NULL AND txn_date BETWEEN ? AND ? GROUP BY a,t`,[sISO,eISO]).forEach(r=>{const o=mk(r.a); if(r.t==='income') o.i+=r.s; else o.e+=r.s;});
+  q(`SELECT from_id f,to_id t,SUM(amount) s FROM transfers WHERE deleted_at IS NULL AND txn_date BETWEEN ? AND ? GROUP BY f,t`,[sISO,eISO]).forEach(r=>{mk(r.f).tr-=r.s; mk(r.t).tr+=r.s;});
+  if(al.length) h+=card2('Account-wise (this period)',al.map(a=>{const o=mv[a.id]||{i:0,e:0,tr:0}; return `<div class="item" style="flex-direction:column;align-items:stretch;gap:4px;margin-bottom:8px"><div class="hrow"><b>${esc((a.emoji||'')+' '+a.name)}</b><b>${fmtPaise(bl.B[a.id])}</b></div><div class="muted" style="font-size:12px">In ${kfmt(o.i)} • Out ${kfmt(o.e)} • Transfers ${o.tr>=0?'+':'−'}${kfmt(Math.abs(o.tr))}</div></div>`;}).join(''));
+  const M={},used={}; ex.forEach(t=>{const c=catName(t.category_id); if(!c||!t.account_id||!ACC.has(t.account_id)) return; const id=c.parent_id||c.id; (M[id]=M[id]||{})[t.account_id]=(M[id][t.account_id]||0)+t.amount; used[t.account_id]=1;});
+  const cols=al.filter(a=>used[a.id]);
+  if(cols.length&&ct.length) h+=card2('Category × Account (% of category spend)','<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px"><tr><th style="text-align:left;padding:4px">Category</th>'+cols.map(a=>`<th style="padding:4px;white-space:nowrap">${esc(a.name)}</th>`).join('')+'</tr>'+ct.slice(0,6).map(c=>{const row=M[c.id]||{}, tot=sumBy(Object.values(row),x=>x)||1; return `<tr><td style="padding:6px 4px;border-top:1px solid var(--line)">${esc(c.name)}</td>`+cols.map(a=>{const p=Math.round((row[a.id]||0)/tot*100); return `<td style="padding:6px 4px;text-align:center;border-top:1px solid var(--line);${p>=60?'font-weight:800;color:var(--teal2)':''}">${p?p+'%':'–'}</td>`;}).join('')+'</tr>';}).join('')+'</table></div>');
+  $('#insExtra').innerHTML=h;
+}
+function presetCmp(k){const n=new Date(),Y=n.getFullYear(),M=n.getMonth(),dd=n.getDate(); let a,b;
+  if(k==='month'){a=[new Date(Y,M,1),new Date(Y,M+1,0)]; b=[new Date(Y,M-1,1),new Date(Y,M,0)];}
+  else if(k==='week'){const d=(n.getDay()+6)%7; a=[new Date(Y,M,dd-d),new Date(Y,M,dd-d+6)]; b=[new Date(Y,M,dd-d-7),new Date(Y,M,dd-d-1)];}
+  else if(k==='quarter'){const q0=Math.floor(M/3)*3; a=[new Date(Y,q0,1),new Date(Y,q0+3,0)]; b=[new Date(Y,q0-3,1),new Date(Y,q0,0)];}
+  else{a=[new Date(Y,0,1),new Date(Y,11,31)]; b=[new Date(Y-1,0,1),new Date(Y-1,11,31)];}
+  $('#cA1').value=iso(a[0]); $('#cA2').value=iso(a[1]); $('#cB1').value=iso(b[0]); $('#cB2').value=iso(b[1]); runCmp();}
+function runCmp(){
+  const out=$('#cmpOut'), v=['#cA1','#cA2','#cB1','#cB2'].map(i=>$(i).value);
+  if(v.some(x=>!x)){out.innerHTML='<div class="muted" style="font-size:13px">Pick all four dates.</div>'; return;}
+  if(v[0]>v[1]||v[2]>v[3]){out.innerHTML='<div class="muted" style="font-size:13px">A start date must be before its end date.</div>'; return;}
+  const calc=(a,b)=>{const o={inc:0,exp:0,cats:{}}; q(`SELECT type,amount,category_id FROM transactions WHERE deleted_at IS NULL AND txn_date BETWEEN ? AND ?`,[a,b]).forEach(t=>{if(t.type==='income') o.inc+=t.amount; else{o.exp+=t.amount; const c=catName(t.category_id); if(c){const id=c.parent_id||c.id; o.cats[id]=(o.cats[id]||0)+t.amount;}}}); return o;};
+  const A=calc(v[0],v[1]), B=calc(v[2],v[3]);
+  const chg=(a,b,badUp)=>{const d=a-b; if(!b) return d? '<span class="muted">new</span>':'–'; const p=Math.round(d/b*100); return `<span style="color:${d===0?'var(--muted)':((d>0)===badUp?'var(--red)':'var(--green)')}">${d>0?'+':''}${p}%</span>`;};
+  const row=(n,a,b,badUp,bold)=>`<tr style="${bold?'font-weight:800':''}"><td style="padding:6px 4px;border-top:1px solid var(--line)">${n}</td><td style="padding:6px 4px;text-align:right;border-top:1px solid var(--line)">${kfmt(a)}</td><td style="padding:6px 4px;text-align:right;border-top:1px solid var(--line)">${kfmt(b)}</td><td style="padding:6px 4px;text-align:right;border-top:1px solid var(--line)">${chg(a,b,badUp)}</td></tr>`;
+  const ids=[...new Set([...Object.keys(A.cats),...Object.keys(B.cats)])].sort((x,y)=>Math.max(B.cats[y]||0,A.cats[y]||0)-Math.max(B.cats[x]||0,A.cats[x]||0));
+  out.innerHTML='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px"><tr class="muted"><th style="text-align:left;padding:4px">Rs.</th><th style="text-align:right;padding:4px">A</th><th style="text-align:right;padding:4px">B</th><th style="text-align:right;padding:4px">Change</th></tr>'+row('Income',A.inc,B.inc,false,1)+row('Expense',A.exp,B.exp,true,1)+row('Net',A.inc-A.exp,B.inc-B.exp,false,1)+ids.map(id=>row(esc((catName(id)||{name:'?'}).name),A.cats[id]||0,B.cats[id]||0,true,0)).join('')+'</table></div>';
+}
+
+// ---- People, net position and editing ----
+function canonPerson(n){n=(n||'').replace(/\s+/g,' ').trim(); if(!n) return ''; const r=q(`SELECT person FROM loans WHERE deleted_at IS NULL AND lower(person)=lower(?) LIMIT 1`,[n]); return r.length? r[0].person : n;}
+function fillPersons(){$('#personList').innerHTML=q(`SELECT DISTINCT person FROM loans WHERE deleted_at IS NULL ORDER BY person COLLATE NOCASE`).map(r=>`<option value="${esc(r.person)}">`).join('');}
+function renderNet(){
+  const by={}; q(`SELECT person,kind,SUM(amount) s FROM loans WHERE deleted_at IS NULL GROUP BY person,kind`).forEach(r=>{(by[r.person]=by[r.person]||{})[r.kind]=r.s;});
+  const rows=Object.keys(by).filter(p=>(by[p].given||by[p].returned)&&(by[p].borrowed||by[p].repaid)).map(p=>({p,net:((by[p].given||0)-(by[p].returned||0))-((by[p].borrowed||0)-(by[p].repaid||0))}));
+  $('#netPeople').innerHTML=rows.length? card2('Net with people you both lent to and borrowed from',rows.map(r=>`<div class="hrow" style="margin:6px 0"><b>${esc(r.p)}</b><span style="font-weight:800;color:${r.net>0?'var(--green)':r.net<0?'var(--red)':'var(--muted)'}">${r.net>0?'owes you ':r.net<0?'you owe ':'settled '}${r.net?fmtPaise(Math.abs(r.net)):''}</span></div>`).join('')) : '';
+}
+function accOptions(sel){return '<option value="">No account</option>'+q(`SELECT * FROM accounts WHERE deleted_at IS NULL ORDER BY active DESC, name COLLATE NOCASE`).map(a=>`<option value="${a.id}" ${a.id===sel?'selected':''}>${esc((a.emoji||'')+' '+a.name)}${a.active?'':' (hidden)'}</option>`).join('');}
+function openLoanEdit(id){const l=q(`SELECT * FROM loans WHERE id=?`,[id])[0]; if(!l) return;
+  $('#leId').value=id; $('#lePerson').value=l.person; $('#leKind').value=l.kind; $('#leAmt').value=l.amount/100; $('#leDate').value=l.txn_date; $('#leNote').value=l.note||''; $('#leAcc').innerHTML=accOptions(l.account_id); loanDlg.showModal();}
+function saveLoanEdit(){
+  const person=canonPerson($('#lePerson').value), amt=toPaise($('#leAmt').value);
+  if(!person) return alert('Enter a person name'); if(!amt||isNaN(amt)||amt<=0) return alert('Enter a valid amount');
+  run(`UPDATE loans SET person=?,kind=?,amount=?,txn_date=?,account_id=?,note=?,updated_at=? WHERE id=?`,[person,$('#leKind').value,amt,$('#leDate').value||todayISO(),$('#leAcc').value||null,$('#leNote').value.trim(),new Date().toISOString(),$('#leId').value]);
+  saveDB(); loanDlg.close(); renderAll();
+}
+function openTxEdit(id){const t=q(`SELECT * FROM transactions WHERE id=?`,[id])[0]; if(!t) return;
+  $('#teId').value=id; $('#teTitle').textContent='Edit '+(t.type==='income'?'income':'expense'); $('#teAmt').value=t.amount/100; $('#teDate').value=t.txn_date; $('#teAcc').innerHTML=accOptions(t.account_id);
+  $('#teCat').innerHTML=[...CATS.values()].filter(c=>c.kind===t.type&&!c.deleted_at&&(c.active||c.id===t.category_id)).sort((a,b)=>catPath(a.id).localeCompare(catPath(b.id))).map(c=>`<option value="${c.id}" ${c.id===t.category_id?'selected':''}>${esc(catPath(c.id))}</option>`).join('');
+  $('#teMerch').value=t.merchant||''; $('#teNote').value=t.note||''; $('#teNat').value=t.nature||''; $('#teTax').checked=!!t.tax_ded; $('#teNatRow').classList.toggle('hidden',t.type!=='expense'); txDlg.showModal();}
+function saveTxEdit(){
+  const amt=toPaise($('#teAmt').value); if(!amt||isNaN(amt)||amt<=0) return alert('Enter a valid amount'); if(!$('#teCat').value) return alert('Pick a category');
+  const t=q(`SELECT type FROM transactions WHERE id=?`,[$('#teId').value])[0], ex=t&&t.type==='expense';
+  run(`UPDATE transactions SET amount=?,txn_date=?,account_id=?,category_id=?,merchant=?,note=?,nature=?,tax_ded=?,updated_at=? WHERE id=?`,[amt,$('#teDate').value||todayISO(),$('#teAcc').value||null,$('#teCat').value,$('#teMerch').value.trim(),$('#teNote').value.trim(),ex?$('#teNat').value:'',(ex&&$('#teTax').checked)?1:0,new Date().toISOString(),$('#teId').value]);
+  saveDB(); txDlg.close(); renderAll();
 }
 
 init();
