@@ -81,6 +81,18 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 .dh{padding:14px;border-bottom:1px solid var(--line);font-weight:800;display:flex;justify-content:space-between;align-items:center}
 .db{padding:14px}
 .top{flex-wrap:wrap;gap:6px}.topActions{gap:6px}
+#view-dashboard .seg button{padding:9px 4px;font-size:13px}
+#printArea{display:none}
+@media print{
+  body{background:#fff;color:#000}
+  body>*:not(#printArea){display:none !important}
+  #printArea{display:block;font-size:12px;color:#000}
+  #printArea h1{font-size:18px;margin:0 0 4px}#printArea h2{font-size:14px;margin:16px 0 6px}
+  #printArea table{width:100%;border-collapse:collapse}
+  #printArea th,#printArea td{border-bottom:1px solid #ccc;padding:4px 6px;text-align:left}
+  #printArea td.n,#printArea th.n{text-align:right;white-space:nowrap}
+  #printArea tr{break-inside:avoid}
+}
 </style>
 </head>
 <body>
@@ -89,6 +101,7 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
   <div class="topActions">
     <button class="btn sm" id="syncBtn" onclick="openSync()">Sync</button>
     <button class="btn sm" id="backupBtn">Backup</button>
+    <button class="btn sm" onclick="expDlg.showModal()">Export</button>
     <label class="btn sm" style="cursor:pointer"><input id="restoreFile" type="file" accept=".db,.sqlite,.bin" hidden>Restore</label>
   </div>
 </div>
@@ -113,6 +126,7 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
         <div><div class="label">Date</div><input id="txnDate" type="date" class="input"></div>
         <div><div class="label">Note</div><input id="note" class="input" placeholder="Optional"></div>
       </div>
+      <div class="label">Repeat</div><select id="repeat" class="input"><option value="">Does not repeat</option><option value="weekly">Every week</option><option value="monthly">Every month</option></select>
       <button class="btn primary" style="width:100%;margin-top:14px;padding:14px;border-radius:12px;font-size:16px" onclick="saveTxn()">Save</button>
       <div id="addMsg" class="muted" style="text-align:center;margin-top:8px;font-size:13px"></div>
     </div>
@@ -124,6 +138,14 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
       <div class="search"><s>🔍</s><input id="q" class="input" placeholder="Search note or category" oninput="renderHistory()"></div>
       <div style="height:10px"></div>
       <div class="seg"><button id="fAll" class="on" onclick="setFilter('all')">All</button><button id="fExpense" onclick="setFilter('expense')">Expense</button><button id="fIncome" onclick="setFilter('income')">Income</button></div>
+      <div class="hrow" style="margin-top:10px"><button class="btn sm" id="hfToggle" onclick="toggleHF()">More filters ▾</button><button class="btn sm" onclick="exportHistory()">⬇ Export these (CSV)</button></div>
+      <div id="hFilters" class="hidden">
+        <div class="grid2" style="margin-top:8px"><select id="hfAcc" class="input" onchange="hfChanged()"></select><select id="hfCat" class="input" onchange="hfChanged()"></select></div>
+        <div class="label">Date range</div><div class="grid2"><input id="hfFrom" type="date" class="input" onchange="hfChanged()"><input id="hfTo" type="date" class="input" onchange="hfChanged()"></div>
+        <div class="label">Amount (Rs.)</div><div class="grid2"><input id="hfMin" class="input" inputmode="decimal" placeholder="Min" oninput="hfChanged()"><input id="hfMax" class="input" inputmode="decimal" placeholder="Max" oninput="hfChanged()"></div>
+        <div class="label">Sort</div><div class="grid2"><select id="hfSort" class="input" onchange="hfChanged()"><option value="new">Newest first</option><option value="old">Oldest first</option><option value="high">Highest amount</option><option value="low">Lowest amount</option></select><button class="btn" onclick="clearHF()">Clear filters</button></div>
+      </div>
+      <div id="hSummary" class="muted" style="font-size:12px;margin-top:8px"></div>
     </div>
     <div id="historyList" style="margin-top:12px"></div>
   </section>
@@ -135,7 +157,9 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
       <div style="text-align:center"><div id="dashRange" style="font-weight:800"></div><div class="muted" style="font-size:12px" id="dashSub"></div></div>
       <button class="btn sm" onclick="shift(1)">Next ›</button>
     </div>
-    <div class="seg" style="margin-top:10px"><button id="pWeek" onclick="setPeriod('week')">Week</button><button id="pMonth" class="on" onclick="setPeriod('month')">Month</button><button id="p3M" onclick="setPeriod('3m')">3M</button><button id="p6M" onclick="setPeriod('6m')">6M</button><button id="pYear" onclick="setPeriod('year')">Year</button></div>
+    <div class="seg" style="margin-top:10px"><button id="pWeek" onclick="setPeriod('week')">Week</button><button id="pMonth" class="on" onclick="setPeriod('month')">Month</button><button id="p3M" onclick="setPeriod('3m')">3M</button><button id="p6M" onclick="setPeriod('6m')">6M</button><button id="pYear" onclick="setPeriod('year')">Year</button><button id="pCustom" onclick="setPeriod('custom')">Custom</button></div>
+    <div id="customRow" class="grid2 hidden" style="margin-top:8px"><input id="cuFrom" type="date" class="input" onchange="offset=0;renderDashboard()"><input id="cuTo" type="date" class="input" onchange="offset=0;renderDashboard()"></div>
+    <div style="text-align:right;margin-top:8px"><button class="btn sm" onclick="printReport()">🖨 Print / Save as PDF</button></div>
     <div class="card hero" style="margin-top:12px">
       <div class="k">Total Expense</div><div id="heroExpense" class="v">Rs. 0.00</div>
       <div class="chips"><span class="chip" id="heroIncome">Income Rs. 0.00</span><span class="chip" id="heroSave">Savings Rs. 0.00</span></div>
@@ -182,6 +206,7 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
     <div class="row" style="margin-top:10px"><button class="btn primary" onclick="openAcc()">+ Account</button><button class="btn" onclick="openTr()">⇄ Transfer</button><button class="btn" onclick="nav('categories')">Categories</button></div>
     <div id="accList" class="list" style="margin-top:10px"></div>
     <div class="label">Recent transfers</div><div id="trList" class="list"></div>
+    <div class="label">Recurring entries</div><div id="recList" class="list"></div>
   </section>
 
   <!-- CATEGORIES -->
@@ -200,6 +225,8 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
   <button id="nav-pendings" onclick="nav('pendings')"><b>⇄</b>Pendings</button>
   <button id="nav-accounts" onclick="nav('accounts')"><b>◎</b>Accounts</button>
 </nav>
+
+<div id="printArea"></div>
 
 <div id="toast" class="hidden" style="position:fixed;left:12px;right:12px;bottom:76px;z-index:30;max-width:496px;margin:auto;background:var(--text);color:var(--bg);padding:10px 14px;border-radius:12px;display:flex;justify-content:space-between;align-items:center;font-weight:600"></div>
 
@@ -221,12 +248,22 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 <dialog id="accDlg"><div class="dh"><span id="accDlgTitle">New account</span><button class="btn sm" onclick="accDlg.close()">✕</button></div><div class="db">
   <input id="accName" class="input" placeholder="Name (e.g. Cash, HBL Bank, JazzCash)" maxlength="24">
   <div class="label">Type</div><select id="accKind" class="input"><option value="cash">Cash</option><option value="bank">Bank</option><option value="wallet">Wallet (JazzCash, Easypaisa)</option><option value="card">Credit card</option></select>
-  <div class="label">Opening balance (Rs.). For a credit card, enter the amount you owe.</div><input id="accOpen" class="input" inputmode="decimal" placeholder="0">
+  <div class="label">Opening balance (Rs.). For a credit card, enter the amount you owe (use a minus sign if the card is in credit).</div><input id="accOpen" class="input" inputmode="decimal" placeholder="0">
   <div class="label">Emoji</div><input id="accEmoji" class="input" maxlength="4">
   <div class="chips" style="margin-top:8px"><button class="chip" onclick="accEmoji.value='💵'">💵</button><button class="chip" onclick="accEmoji.value='🏦'">🏦</button><button class="chip" onclick="accEmoji.value='📱'">📱</button><button class="chip" onclick="accEmoji.value='💳'">💳</button><button class="chip" onclick="accEmoji.value='👛'">👛</button><button class="chip" onclick="accEmoji.value='🪙'">🪙</button></div>
   <input type="hidden" id="accId"><div class="row" style="margin-top:12px"><button class="btn" onclick="accDlg.close()">Cancel</button><button class="btn primary" onclick="saveAcc()">Save</button></div></div></dialog>
 
-<dialog id="trDlg"><div class="dh"><span>Transfer between accounts</span><button class="btn sm" onclick="trDlg.close()">✕</button></div><div class="db">
+<dialog id="expDlg"><div class="dh"><span>Export to CSV (opens in Excel)</span><button class="btn sm" onclick="expDlg.close()">✕</button></div><div class="db">
+  <div class="muted" style="font-size:13px">Downloads a spreadsheet file of your data. Deleted entries are left out. This is not a backup; use Backup to save everything.</div>
+  <button class="btn primary" style="width:100%;margin-top:12px;padding:12px" onclick="exportCSV('transactions')">Income &amp; expenses</button>
+  <button class="btn" style="width:100%;margin-top:8px;padding:12px" onclick="exportCSV('loans')">Pendings (loans)</button>
+  <button class="btn" style="width:100%;margin-top:8px;padding:12px" onclick="exportCSV('transfers')">Transfers</button></div></dialog>
+
+<dialog id="budDlg"><div class="dh"><span id="budTitle">Monthly budget</span><button class="btn sm" onclick="budDlg.close()">✕</button></div><div class="db">
+  <input type="hidden" id="budCat"><div class="label">Monthly limit (Rs.). Leave empty to remove the budget.</div><input id="budAmt" class="input" inputmode="decimal" placeholder="e.g. 20000">
+  <div class="row" style="margin-top:12px"><button class="btn" onclick="budDlg.close()">Cancel</button><button class="btn primary" onclick="saveBudget()">Save</button></div></div></dialog>
+
+<dialog id="trDlg"><div class="dh"><span id="trTitle">Transfer between accounts</span><button class="btn sm" onclick="trDlg.close()">✕</button></div><div class="db"><input type="hidden" id="trId">
   <div class="label">From</div><select id="trFrom" class="input"></select><div class="label">To</div><select id="trTo" class="input"></select>
   <div class="label">Amount (Rs.)</div><input id="trAmt" class="input" inputmode="decimal" placeholder="0.00">
   <div class="grid2" style="margin-top:8px"><input id="trDate" type="date" class="input"><input id="trNote" class="input" placeholder="Note (optional)"></div>
@@ -262,18 +299,26 @@ const COLORS=['#14b8a6','#0ea5e9','#a855f7','#f97316','#ef4444','#84cc16','#eab3
 const EMOJIS='🍔 🍕 🍜 ☕ 🛒 🥗 🍎 🍼 🚗 🚕 🚌 🚆 🚲 ⛽ ✈️ 🧳 🏖️ 🏠 🔑 🔧 🧹 💡 🧾 📱 🌐 💊 🏥 🦷 💇 🛍️ 👕 💻 📚 🎓 🎬 🎮 🎵 📷 ⚽ 🏋️ 🎁 🎉 💰 💵 💳 🏦 📈 💼 👨‍👩‍👧 👶 🐾 🙏 ❤️ ⭐ 🔥'.split(' ');
 const $=s=>document.querySelector(s);
 function fmtPaise(p){const neg=p<0; p=Math.abs(p); return (neg?'-':'')+'Rs. '+(p/100).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});}
-function toPaise(str){str=(str||'').toString().replace(/,/g,'').trim(); if(!str) return 0; const n=Number(str); if(isNaN(n)) return NaN; return Math.round(n*100);}
+const MAX_RS=1e12; // Rs. 1 trillion: anything above is treated as a typing mistake
+function toPaise(str){str=(str||'').toString().replace(/,/g,'').trim(); if(!str) return 0; if(!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(str)) return NaN; const n=Number(str); if(!isFinite(n)||Math.abs(n)>MAX_RS) return NaN; return Math.round(n*100);}
 function iso(d){const p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());}
 function uid(){return crypto.randomUUID();}
 function todayISO(){return iso(new Date());}
-function esc(s){return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
 // IndexedDB
 const DBN='expenseDB', ST='kv', KEY='sqlite';
-function idbOpen(){return new Promise((res,rej)=>{const r=indexedDB.open(DBN,1); r.onupgradeneeded=e=>{if(!e.target.result.objectStoreNames.contains(ST)) e.target.result.createObjectStore(ST);}; r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);});}
-async function idbGet(){try{const dbi=await idbOpen();return await new Promise((res,rej)=>{const tx=dbi.transaction(ST,'readonly');const req=tx.objectStore(ST).get(KEY);req.onsuccess=()=>res(req.result||null);req.onerror=()=>rej(req.error);});}catch{return null;}}
-async function idbPut(buf){const dbi=await idbOpen();await new Promise((res,rej)=>{const tx=dbi.transaction(ST,'readwrite');tx.objectStore(ST).put(buf,KEY);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});}
-async function saveDB(){if(!db) return; loadCats(); const data=db.export(); idbPut(data); localStorage.setItem('exp_backup_hint','1');}
+let idbConn=null;
+function idbOpen(){if(idbConn) return idbConn; idbConn=new Promise((res,rej)=>{const r=indexedDB.open(DBN,1); r.onupgradeneeded=e=>{if(!e.target.result.objectStoreNames.contains(ST)) e.target.result.createObjectStore(ST);}; r.onsuccess=()=>{const c=r.result; c.onversionchange=()=>{c.close(); idbConn=null;}; c.onclose=()=>{idbConn=null;}; res(c);}; r.onerror=()=>{idbConn=null; rej(r.error);}; r.onblocked=()=>{idbConn=null; rej(new Error('Storage is blocked by another open copy of the app.'));};}); return idbConn;}
+// Throws on a read error (instead of pretending the database is empty) so a failed read can never lead to an empty database overwriting real data.
+async function idbGet(){const dbi=await idbOpen();return await new Promise((res,rej)=>{const tx=dbi.transaction(ST,'readonly');const req=tx.objectStore(ST).get(KEY);req.onsuccess=()=>res(req.result||null);req.onerror=()=>rej(req.error);});}
+async function idbPut(buf){const dbi=await idbOpen();await new Promise((res,rej)=>{const tx=dbi.transaction(ST,'readwrite');tx.objectStore(ST).put(buf,KEY);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);tx.onabort=()=>rej(tx.error||new Error('Save aborted'));});}
+let saveChain=Promise.resolve(), saveFailed=false;
+// Saves are queued so they always land in order; resolves true when the data is safely stored on the device.
+function saveDB(){if(!db) return Promise.resolve(false); loadCats(); const data=db.export();
+  const p=saveChain.then(()=>idbPut(data)); saveChain=p.catch(()=>{});
+  return p.then(()=>{if(saveFailed){saveFailed=false; updateBk();} return true;},e=>{saveFailed=true; console.error('Save failed',e); const el=$('#bkNote'); if(el){el.textContent='⚠ Could not save to this device ('+((e&&e.message)||'storage error')+'). Tap Backup now so you do not lose recent changes.'; el.style.color='var(--red)';} return false;});}
+function fatal(msg){const w=document.querySelector('.wrap'); if(w) w.innerHTML='<div class="empty" style="margin-top:24px;color:var(--text)"><b>'+esc(msg)+'</b><div class="muted" style="margin-top:8px;font-size:13px">Your saved data has not been changed. Close the app completely and open it again.</div></div>'; const n=document.querySelector('.nav'); if(n) n.classList.add('hidden');}
 function q(sql,params=[]){const stmt=db.prepare(sql); stmt.bind(params); const rows=[]; while(stmt.step()) rows.push(stmt.getAsObject()); stmt.free(); return rows;}
 function run(sql,params=[]){db.run(sql,params);}
 
@@ -286,16 +331,14 @@ function ensureSchema(){
   db.run(`CREATE INDEX IF NOT EXISTS idx_cat_parent ON categories(parent_id)`);
   db.run(`CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, name TEXT, emoji TEXT, opening INTEGER, active INTEGER, updated_at TEXT, deleted_at TEXT)`);
   db.run(`CREATE TABLE IF NOT EXISTS transfers (id TEXT PRIMARY KEY, txn_date TEXT, amount INTEGER, from_id TEXT, to_id TEXT, note TEXT, updated_at TEXT, deleted_at TEXT)`);
+  db.run(`CREATE TABLE IF NOT EXISTS budgets (id TEXT PRIMARY KEY, category_id TEXT, amount INTEGER, updated_at TEXT, deleted_at TEXT)`);
+  db.run(`CREATE TABLE IF NOT EXISTS recurring (id TEXT PRIMARY KEY, type TEXT, amount INTEGER, category_id TEXT, account_id TEXT, merchant TEXT, note TEXT, nature TEXT, tax_ded INTEGER, freq TEXT, anchor_day INTEGER, next_date TEXT, active INTEGER, updated_at TEXT, deleted_at TEXT)`);
   ['transactions','loans'].forEach(t=>{ if(!q(`PRAGMA table_info(${t})`).some(c=>c.name==='account_id')) db.run(`ALTER TABLE ${t} ADD COLUMN account_id TEXT`); });
   [['transactions','merchant TEXT'],['transactions','nature TEXT'],['transactions','tax_ded INTEGER'],['transactions','txn_time TEXT'],['accounts','kind TEXT'],['loans','txn_time TEXT']].forEach(([t,d])=>{ if(!q(`PRAGMA table_info(${t})`).some(x=>x.name===d.split(' ')[0])) db.run(`ALTER TABLE ${t} ADD COLUMN ${d}`); });
 }
 function needSeed(){const r=q(`SELECT count(*) as c FROM categories WHERE deleted_at IS NULL`); return (r[0]?.c||0)===0;}
-function seed(){
-  const now=new Date().toISOString();
-  function addCat(name,kind,emoji,color,parent=null){
-    const id='seed:'+kind+':'+name+(parent?'@'+parent:''); run(`INSERT INTO categories (id,name,parent_id,kind,emoji,color,active,updated_at) VALUES (?,?,?,?,?,?,1,?)`,[id,name,parent,kind,emoji,color,now]); return id;
-  }
-  const exp=[
+const DEFAULT_CATS={
+  expense:[
     ['Food','🍔','#f97316',[['Restaurant'],['Groceries'],['Cafe']]],
     ['Transport','🚕','#0ea5e9',[['Fuel'],['Metro'],['Taxi']]],
     ['Shopping','🛍️','#a855f7',[['Clothes'],['Electronics'],['General']]],
@@ -303,37 +346,58 @@ function seed(){
     ['Health','⚕️','#ef4444',[['Medicine'],['Doctor']]],
     ['Entertainment','🎬','#ec4899',[['Movies'],['Games']]],
     ['Housing','🏠','#78716c',[['Rent'],['Maintenance']]],
-    ['Education','📚','#0ea5e9',[]],
+    ['Education','📚','#eab308',[]],
     ['Travel','✈️','#06b6d4',[]],
-  ];
-  const inc=[
+  ],
+  income:[
     ['Salary','💼','#10b981',[]],
     ['Freelance','💻','#06b6d4',[]],
     ['Investment','📈','#84cc16',[['Interest'],['Dividends']]],
     ['Other','💰','#eab308',[]],
-  ];
-  exp.forEach(([name,emoji,color,subs])=>{const pid=addCat(name,'expense',emoji,color,null); subs.forEach(([s])=>addCat(s,'expense','',color,pid));});
-  inc.forEach(([name,emoji,color,subs])=>{const pid=addCat(name,'income',emoji,color,null); subs.forEach(([s])=>addCat(s,'income','',color,pid));});
+  ]};
+function seed(){
+  const now=new Date().toISOString();
+  function addCat(name,kind,emoji,color,parent=null){
+    const id='seed:'+kind+':'+name+(parent?'@'+parent:''); run(`INSERT INTO categories (id,name,parent_id,kind,emoji,color,active,updated_at) VALUES (?,?,?,?,?,?,1,?)`,[id,name,parent,kind,emoji,color,now]); return id;
+  }
+  ['expense','income'].forEach(kind=>DEFAULT_CATS[kind].forEach(([name,emoji,color,subs])=>{const pid=addCat(name,kind,emoji,color,null); subs.forEach(([s])=>addCat(s,kind,'',color,pid));}));
+}
+// True only when the categories are exactly the untouched built-in defaults (same names, emojis, parents, all visible, none deleted).
+// Used so the one-time category-id upgrade can never wipe categories the user created or changed.
+function onlyDefaultCats(){
+  const want=[]; ['expense','income'].forEach(k=>DEFAULT_CATS[k].forEach(([n,e,c,subs])=>{want.push(k+'|'+n+'|'+e+'|'); subs.forEach(([s])=>want.push(k+'|'+s+'||'+n));}));
+  const all=q(`SELECT * FROM categories`), byId=new Map(all.map(c=>[c.id,c]));
+  if(all.length!==want.length) return false;
+  const have=all.map(c=>{if(c.deleted_at||!c.active) return '#'; const p=c.parent_id?byId.get(c.parent_id):null; if(c.parent_id&&!p) return '#'; return c.kind+'|'+c.name+'|'+(c.emoji||'')+'|'+(p?p.name:'');});
+  return want.sort().join('\n')===have.sort().join('\n');
 }
 
+const SQL_CDN='https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/';
+let SQLlib=null;
+async function getSQL(){if(SQLlib) return SQLlib; if(typeof initSqlJs!=='function') throw new Error('The database engine could not be downloaded. Check your internet connection.'); SQLlib=await initSqlJs({locateFile:f=>SQL_CDN+f}); return SQLlib;}
 async function init(){
-  const SQL=await initSqlJs({locateFile:f=>`https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${f}`});
-  const buf=await idbGet();
-  if(buf){ db=new SQL.Database(new Uint8Array(buf)); ensureSchema();}
+  let SQL, buf;
+  try{ SQL=await getSQL(); }catch(e){ return fatal(e.message||'The database engine could not be loaded. Check your internet connection.'); }
+  try{ buf=await idbGet(); }catch(e){ console.error(e); return fatal('Could not read your saved data from this device ('+((e&&e.message)||'storage error')+').'); }
+  if(buf){ try{ db=new SQL.Database(new Uint8Array(buf)); }catch(e){ console.error(e); return fatal('Your saved data could not be opened. Use Restore with a backup file.'); } ensureSchema();}
   else { db=new SQL.Database(); ensureSchema(); if(needSeed()) seed(); await saveDB();}
-  // ensure schema if old
-  ensureSchema();
   if(localStorage.getItem('exp_seedv')!=='2'){ // one-time: shared default category ids so synced devices do not get duplicate categories
-    if(!q(`SELECT 1 x FROM transactions LIMIT 1`).length && !q(`SELECT 1 x FROM loans LIMIT 1`).length){ run(`DELETE FROM categories`); seed(); await saveDB(); }
+    // Only when nothing has been recorded AND the categories are still the untouched defaults, so no user-made category is ever removed.
+    if(!q(`SELECT 1 x FROM transactions LIMIT 1`).length && !q(`SELECT 1 x FROM loans LIMIT 1`).length && !q(`SELECT 1 x FROM categories WHERE id LIKE 'seed:%' LIMIT 1`).length && onlyDefaultCats()){ run(`DELETE FROM categories`); seed(); await saveDB(); }
     localStorage.setItem('exp_seedv','2');
   }
   loadCats();
-  $('#txnDate').value=todayISO();
-  $('#loanDate').value=todayISO();
+  setDefaultDates();
   buildEmojiGrid(); buildSwatches();
+  const nRec=processRecurring(); if(nRec) await saveDB();
   switchType('expense'); renderAll(); setupBackup(); updateBk(); presetCmp('month'); if(navigator.storage&&navigator.storage.persist) navigator.storage.persist();
+  if(nRec){$('#addMsg').textContent=nRec+' recurring entr'+(nRec>1?'ies':'y')+' added.'; setTimeout(()=>$('#addMsg').textContent='',4000);}
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible'||!db) return; setDefaultDates(); if(processRecurring()){saveDB(); renderAll();}});
   if('serviceWorker' in navigator) try{navigator.serviceWorker.register('sw.js');}catch{}
 }
+// Keeps the Add / Pendings date on "today" after midnight, unless the user picked a different date themselves.
+let defDate='';
+function setDefaultDates(){const t=todayISO(); ['#txnDate','#loanDate'].forEach(s=>{const el=$(s); if(!el.value||el.value===defDate) el.value=t;}); defDate=t;}
 function renderAll(){renderCatChips(); renderAccChips(); fillMerch(); fillPersons(); const m={accounts:renderAccounts,history:renderHistory,dashboard:renderDashboard,pendings:renderPendings,categories:renderCategories}[curView]; if(m) m();}
 
 function switchType(t){curType=t; $('#natRow').classList.toggle('hidden',t!=='expense'); if(t!=='expense') resetNat(); selCat=null; selSub=null; $('#tExpense').classList.toggle('on',t==='expense'); $('#tIncome').classList.toggle('on',t==='income'); renderCatChips();}
@@ -369,9 +433,17 @@ function saveTxn(){
   if(!selAcc){$('#addMsg').textContent='Create an account first.'; return;}
   const cid=selSub||selCat;
   const d=$('#txnDate').value||todayISO();
-  const note=$('#note').value.trim();
-  run(`INSERT INTO transactions (id,txn_date,amount,type,category_id,note,account_id,merchant,nature,tax_ded,txn_time,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,[uid(),d,paise,curType,cid,note,selAcc,$('#merchant').value.trim(),curType==='expense'?curNat:'',($('#taxDed').checked&&curType==='expense')?1:0,new Date().toTimeString().slice(0,5),new Date().toISOString()]);
-  saveDB(); $('#amt').value=''; $('#note').value=''; resetNat(); $('#addMsg').textContent='Saved ✓'; setTimeout(()=>$('#addMsg').textContent='',1500);
+  const note=$('#note').value.trim(), freq=$('#repeat').value, merch=$('#merchant').value.trim(), nat=curType==='expense'?curNat:'', tax=($('#taxDed').checked&&curType==='expense')?1:0, now=new Date().toISOString();
+  let txId=uid(), extra=0;
+  if(freq){ // recurring: store the rule; the first entry gets a predictable id so synced devices never create duplicates
+    const rid=uid(), anchor=Number(d.slice(8,10)); txId='rec:'+rid+':'+d;
+    run(`INSERT INTO recurring (id,type,amount,category_id,account_id,merchant,note,nature,tax_ded,freq,anchor_day,next_date,active,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1,?)`,[rid,curType,paise,cid,selAcc,merch,note,nat,tax,freq,anchor,nextOccur(d,freq,anchor),now]);
+  }
+  run(`INSERT INTO transactions (id,txn_date,amount,type,category_id,note,account_id,merchant,nature,tax_ded,txn_time,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,[txId,d,paise,curType,cid,note,selAcc,merch,nat,tax,new Date().toTimeString().slice(0,5),now]);
+  if(freq) extra=processRecurring();
+  const warn=curType==='expense'?budgetWarning(cid,d):'';
+  $('#amt').value=''; $('#note').value=''; $('#repeat').value=''; resetNat();
+  saveDB().then(ok=>{ $('#addMsg').innerHTML=ok? 'Saved ✓'+(freq?' · repeats '+(freq==='weekly'?'every week':'every month'):'')+(extra?' · '+extra+' past repeat'+(extra>1?'s':'')+' added':'')+(warn?'<br>'+warn:'') : '<span style="color:var(--red)">Added, but could not be saved to this device. Tap Backup now.</span>'; clearTimeout(saveTxn.t); saveTxn.t=setTimeout(()=>$('#addMsg').textContent='',warn?5000:2000); });
   renderAll();
 }
 
@@ -380,36 +452,67 @@ let CATS=new Map(),ACC=new Map();function loadCats(){CATS=new Map(q(`SELECT * FR
 function catName(id){return CATS.get(id)||null;}
 function catPath(catId){const c=catName(catId); if(!c) return '—'; if(!c.parent_id) return c.name; const p=catName(c.parent_id); return p? `${p.name} › ${c.name}`:c.name;}
 function iconHtml(cat,size=16){const bg=cat.color||'#94a3b8'; const ch=cat.emoji? esc(cat.emoji) : esc((cat.name||'?')[0].toUpperCase()); if(cat.emoji) return `<span class="icon" style="background:${bg};font-size:${size}px">${ch}</span>`; return `<span class="icon" style="background:${bg};font-size:${Math.round(size*.75)}px">${ch}</span>`;}
-function renderHistory(){
+// History filters (account, category, dates, amount, sort)
+function toggleHF(){const h=$('#hFilters').classList.toggle('hidden'); $('#hfToggle').textContent=h?'More filters ▾':'Fewer filters ▴'; if(!h) fillHF();}
+function fillHF(){
+  const a=$('#hfAcc').value, c=$('#hfCat').value;
+  $('#hfAcc').innerHTML='<option value="">All accounts</option>'+q(`SELECT * FROM accounts WHERE deleted_at IS NULL ORDER BY active DESC, name COLLATE NOCASE`).map(x=>`<option value="${esc(x.id)}">${esc((x.emoji||'')+' '+x.name)}</option>`).join('');
+  const cats=[...CATS.values()].filter(x=>!x.deleted_at).sort((x,y)=>(x.kind+catPath(x.id)).localeCompare(y.kind+catPath(y.id)));
+  $('#hfCat').innerHTML='<option value="">All categories</option>'+cats.map(x=>`<option value="${esc(x.id)}">${x.parent_id?'  › ':''}${esc(catPath(x.id))}${x.kind==='income'?' (income)':''}</option>`).join('');
+  $('#hfAcc').value=a; $('#hfCat').value=c;
+}
+function hfChanged(){histDays=50; renderHistory();}
+function clearHF(){['#hfAcc','#hfCat','#hfFrom','#hfTo','#hfMin','#hfMax'].forEach(s=>$(s).value=''); $('#hfSort').value='new'; hfChanged();}
+function historyRows(){
   const qq=($('#q').value||'').toLowerCase();
-  let rows=q(`SELECT t.*, c.name as cname, c.parent_id, c.emoji, c.color FROM transactions t LEFT JOIN categories c ON c.id=t.category_id WHERE t.deleted_at IS NULL ORDER BY t.txn_date DESC, t.rowid DESC`);
+  let rows=q(`SELECT t.* FROM transactions t WHERE t.deleted_at IS NULL ORDER BY t.txn_date DESC, t.rowid DESC`);
   if(curFilter!=='all') rows=rows.filter(r=>r.type===curFilter);
   if(qq) rows=rows.filter(r=> (r.note||'').toLowerCase().includes(qq) || (r.merchant||'').toLowerCase().includes(qq) || catPath(r.category_id).toLowerCase().includes(qq) || (r.txn_date||'').includes(qq));
-  // group by date
-  const groups={}; rows.forEach(r=>{(groups[r.txn_date]=groups[r.txn_date]||[]).push(r);});
-  const cont=$('#historyList'); cont.innerHTML='';
-  const dates=Object.keys(groups).sort((a,b)=>b.localeCompare(a));
-  if(!dates.length){cont.innerHTML='<div class="empty">No transactions yet.</div>'; return;}
-  dates.slice(0,histDays).forEach(d=>{
-    const list=groups[d];
-    const dayTotal=list.reduce((s,r)=> s + (r.type==='expense'? r.amount : -r.amount),0); // net expense display? show expense total separately? header shows day total (expense minus income? spec says day total)
-    // For header, sum expense as positive, income as negative? Show net expense? Better show expense total. Spec: header shows date and day total, every row shows its date. We'll show net expense (expense - income) but color accordingly. Provide separate? Keep simple: expense total - income total absolute?
-    const expSum=list.filter(r=>r.type==='expense').reduce((s,r)=>s+r.amount,0);
-    const incSum=list.filter(r=>r.type==='income').reduce((s,r)=>s+r.amount,0);
-    const hdr=document.createElement('div'); hdr.className='dayHead';
-    const dObj=new Date(d+'T00:00:00'); const ds=dObj.toLocaleDateString('en-IN',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
-    hdr.innerHTML=`<span>${esc(ds)}</span><span style="color:${expSum>=incSum?'var(--red)':'var(--green)'}">${expSum? fmtPaise(expSum):''}${expSum&&incSum?' • ':''}${incSum? '+'+fmtPaise(incSum):''}</span>`;
-    cont.appendChild(hdr);
-    list.forEach(r=>{
-      const cat=catName(r.category_id)||{name:'—',emoji:'',color:'#94a3b8'};
-      const row=document.createElement('div'); row.className='item';
-      const amtColor=r.type==='expense'?'var(--red)':'var(--green)';
-      const amtPrefix=r.type==='expense'?'-':'+';
-      row.innerHTML=`${iconHtml(cat)}<div style="flex:1;min-width:0"><div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(catPath(r.category_id))}</div><div class="muted" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.txn_date)}${r.txn_time?' '+esc(r.txn_time):''} • ${accTag(r.account_id)}${r.merchant?esc(r.merchant)+' • ':''}${r.nature?(r.nature==='fixed'?'Fixed':'Variable')+' • ':''}${esc(r.note||'—')}</div></div><div style="text-align:right"><div style="font-weight:800;color:${amtColor}">${amtPrefix}${fmtPaise(r.amount)}</div><button class="btn sm" style="margin-top:4px;padding:4px 8px;font-size:11px" data-del="${r.id}">Delete</button> <button class="btn sm" style="margin-top:4px;padding:4px 8px;font-size:11px" data-txedit="${r.id}">Edit</button></div>`;
-      cont.appendChild(row);
+  const acc=$('#hfAcc').value, cat=$('#hfCat').value, from=$('#hfFrom').value, to=$('#hfTo').value, mn=toPaise($('#hfMin').value), mx=toPaise($('#hfMax').value);
+  if(acc) rows=rows.filter(r=>r.account_id===acc);
+  if(cat) rows=rows.filter(r=>r.category_id===cat||(catName(r.category_id)||{}).parent_id===cat);
+  if(from) rows=rows.filter(r=>r.txn_date>=from);
+  if(to) rows=rows.filter(r=>r.txn_date<=to);
+  if(mn>0) rows=rows.filter(r=>r.amount>=mn);
+  if(mx>0) rows=rows.filter(r=>r.amount<=mx);
+  const s=$('#hfSort').value;
+  if(s==='old') rows.reverse(); else if(s==='high') rows.sort((a,b)=>b.amount-a.amount); else if(s==='low') rows.sort((a,b)=>a.amount-b.amount);
+  return rows;
+}
+function historyItem(r){
+  const cat=catName(r.category_id)||{name:'—',emoji:'',color:'#94a3b8'};
+  const row=document.createElement('div'); row.className='item';
+  const amtColor=r.type==='expense'?'var(--red)':'var(--green)';
+  const amtPrefix=r.type==='expense'?'-':'+';
+  row.innerHTML=`${iconHtml(cat)}<div style="flex:1;min-width:0"><div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(catPath(r.category_id))}${String(r.id).startsWith('rec:')?' <span class="muted" title="Recurring">↻</span>':''}</div><div class="muted" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.txn_date)}${r.txn_time?' '+esc(r.txn_time):''} • ${accTag(r.account_id)}${r.merchant?esc(r.merchant)+' • ':''}${r.nature?(r.nature==='fixed'?'Fixed':'Variable')+' • ':''}${esc(r.note||'—')}</div></div><div style="text-align:right"><div style="font-weight:800;color:${amtColor}">${amtPrefix}${fmtPaise(r.amount)}</div><button class="btn sm" style="margin-top:4px;padding:4px 8px;font-size:11px" data-del="${esc(r.id)}">Delete</button> <button class="btn sm" style="margin-top:4px;padding:4px 8px;font-size:11px" data-txedit="${esc(r.id)}">Edit</button></div>`;
+  return row;
+}
+function renderHistory(){
+  if(!$('#hFilters').classList.contains('hidden')) fillHF();
+  const rows=historyRows(), cont=$('#historyList'); cont.innerHTML='';
+  const filtered=!!($('#q').value||curFilter!=='all'||$('#hfAcc').value||$('#hfCat').value||$('#hfFrom').value||$('#hfTo').value||$('#hfMin').value||$('#hfMax').value);
+  $('#hSummary').textContent=filtered&&rows.length? rows.length+' entr'+(rows.length>1?'ies':'y')+' · Expense '+fmtPaise(sumBy(rows.filter(r=>r.type==='expense'),r=>r.amount))+' · Income '+fmtPaise(sumBy(rows.filter(r=>r.type==='income'),r=>r.amount)) : '';
+  if(!rows.length){cont.innerHTML='<div class="empty">'+(filtered?'No transactions match these filters.':'No transactions yet.')+'</div>'; return;}
+  const s=$('#hfSort').value; let more=false;
+  if(s==='high'||s==='low'){ // amount order: a flat list (each row still shows its date)
+    const lim=histDays*4; rows.slice(0,lim).forEach(r=>cont.appendChild(historyItem(r))); more=rows.length>lim;
+  } else {
+    // group by date, newest (or oldest) day first
+    const groups={}, dates=[]; rows.forEach(r=>{if(!groups[r.txn_date]){groups[r.txn_date]=[]; dates.push(r.txn_date);} groups[r.txn_date].push(r);});
+    dates.sort((a,b)=>s==='old'?a.localeCompare(b):b.localeCompare(a));
+    dates.slice(0,histDays).forEach(d=>{
+      const list=groups[d];
+      const expSum=list.filter(r=>r.type==='expense').reduce((s,r)=>s+r.amount,0);
+      const incSum=list.filter(r=>r.type==='income').reduce((s,r)=>s+r.amount,0);
+      const hdr=document.createElement('div'); hdr.className='dayHead';
+      const dObj=new Date(d+'T00:00:00'); const ds=dObj.toLocaleDateString('en-IN',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+      hdr.innerHTML=`<span>${esc(ds)}</span><span style="color:${expSum>=incSum?'var(--red)':'var(--green)'}">${expSum? fmtPaise(expSum):''}${expSum&&incSum?' • ':''}${incSum? '+'+fmtPaise(incSum):''}</span>`;
+      cont.appendChild(hdr);
+      list.forEach(r=>cont.appendChild(historyItem(r)));
     });
-  });
-  if(dates.length>histDays){const m=document.createElement('button'); m.className='btn'; m.style.cssText='width:100%;margin-top:10px'; m.textContent='Load more'; m.onclick=()=>{histDays+=50; renderHistory();}; cont.appendChild(m);}
+    more=dates.length>histDays;
+  }
+  if(more){const m=document.createElement('button'); m.className='btn'; m.style.cssText='width:100%;margin-top:10px'; m.textContent='Load more'; m.onclick=()=>{histDays+=50; renderHistory();}; cont.appendChild(m);}
   cont.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>delRow('transactions',b.getAttribute('data-del')));
   cont.querySelectorAll('[data-txedit]').forEach(b=>b.onclick=()=>openTxEdit(b.dataset.txedit));
 }
@@ -418,12 +521,21 @@ function toast(msg,undo){const t=$('#toast'); t.innerHTML=esc(msg)+' <button cla
 function delRow(tbl,id){const n=new Date().toISOString(); run(`UPDATE ${tbl} SET deleted_at=?,updated_at=? WHERE id=?`,[n,n,id]); saveDB(); renderAll();
   toast('Deleted',()=>{run(`UPDATE ${tbl} SET deleted_at=NULL,updated_at=? WHERE id=?`,[new Date().toISOString(),id]); saveDB(); renderAll();});}
 // Dashboard
-function setPeriod(p){period=p; offset=0; updateSeg(); renderDashboard();}
+function setPeriod(p){period=p; offset=0;
+  if(p==='custom'&&!$('#cuFrom').value){const n=new Date(); $('#cuFrom').value=iso(new Date(n.getFullYear(),n.getMonth(),1)); $('#cuTo').value=todayISO();}
+  updateSeg(); renderDashboard();}
 function shift(dir){offset+=dir; renderDashboard();}
-function updateSeg(){['week','month','3m','6m','year'].forEach(k=>{const el=$('#p'+(k==='week'?'Week':k==='month'?'Month':k==='3m'?'3M':k==='6m'?'6M':'Year')); if(el) el.classList.toggle('on',k===period);});}
+function updateSeg(){['week','month','3m','6m','year','custom'].forEach(k=>{const el=$('#p'+({week:'Week',month:'Month','3m':'3M','6m':'6M',year:'Year',custom:'Custom'})[k]); if(el) el.classList.toggle('on',k===period);}); $('#customRow').classList.toggle('hidden',period!=='custom');}
+const pd=s=>{const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d);};
 function rangeFor(){
   const now=new Date(); let start,end,label,sub='';
-  if(period==='week'){
+  if(period==='custom'){ // Prev / Next move the whole range by its own length
+    let a=$('#cuFrom').value||todayISO(), b=$('#cuTo').value||a; if(a>b) [a,b]=[b,a];
+    const s0=pd(a), e0=pd(b), span=Math.round((e0-s0)/864e5)+1;
+    start=new Date(s0); start.setDate(s0.getDate()+offset*span); end=new Date(e0); end.setDate(e0.getDate()+offset*span); end.setHours(23,59,59,999);
+    const f=d=>d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+    label=f(start)+' – '+f(end); sub=span<=62?'Daily':span<=210?'Weekly':'Monthly';
+  } else if(period==='week'){
     const d=new Date(now); d.setDate(d.getDate()+offset*7); const day=d.getDay(); // sun 0
     // start monday? use Monday as start
     const diff=(day===0?6:day-1); start=new Date(d); start.setDate(d.getDate()-diff); start.setHours(0,0,0,0);
@@ -462,35 +574,28 @@ function renderDashboard(){
   $('#heroSave').textContent='Savings '+fmtPaise(save);
   // bars
   const barsEl=$('#bars'); barsEl.innerHTML='';
-  let buckets=[], fmt=null;
-  if(period==='week' || period==='month'){
-    // daily buckets
-    let cur=new Date(start); let idx=0;
-    while(cur<=end){
+  let buckets=[];
+  const sumRange=(type,a,b)=>tx.filter(t=>t.type===type && t.txn_date>=a && t.txn_date<=b).reduce((s,t)=>s+t.amount,0);
+  if(sub==='Daily'){ // week, month, short custom range
+    let cur=new Date(start);
+    while(cur<=end && buckets.length<62){
       const day=iso(cur);
-      const dayExp=tx.filter(t=>t.type==='expense' && t.txn_date===day).reduce((a,b)=>a+b.amount,0);
-      const dayInc=tx.filter(t=>t.type==='income' && t.txn_date===day).reduce((a,b)=>a+b.amount,0);
-      buckets.push({label:cur.toLocaleDateString('en-IN',{day:'2-digit',month:'short'}), exp:dayExp, inc:dayInc});
+      buckets.push({label:cur.toLocaleDateString('en-IN',{day:'2-digit',month:'short'}), exp:sumRange('expense',day,day), inc:sumRange('income',day,day)});
       cur.setDate(cur.getDate()+1);
-      if(period==='month' && buckets.length>31) break;
     }
-    if(period==='week') fmt=b=>b.label.slice(0,3);
-  } else if(period==='3m'){
-    // weekly
+  } else if(sub==='Weekly'){ // 3M, medium custom range
     let cur=new Date(start); let n=0;
     while(cur<=end){
-      const wStart=new Date(cur); const wEnd=new Date(cur); wEnd.setDate(wEnd.getDate()+6); if(wEnd>end) wEnd.setTime(end.getTime());
-      const ws=iso(wStart), we=iso(wEnd);
-      const wExp=tx.filter(t=>t.txn_date>=ws && t.txn_date<=we && t.type==='expense').reduce((a,b)=>a+b.amount,0);
-      buckets.push({label:`W${++n}`, exp:wExp});
+      const wEnd=new Date(cur); wEnd.setDate(wEnd.getDate()+6); if(wEnd>end) wEnd.setTime(end.getTime());
+      const ws=iso(cur), we=iso(wEnd);
+      buckets.push({label:`W${++n}`, exp:sumRange('expense',ws,we), inc:sumRange('income',ws,we)});
       cur.setDate(cur.getDate()+7);
     }
-  } else { // 6m or year monthly
+  } else { // 6M, year, long custom range: monthly (clipped to the range)
     let cur=new Date(start.getFullYear(), start.getMonth(),1);
     while(cur<=end){
-      const mStart=iso(new Date(cur.getFullYear(),cur.getMonth(),1)); const mEnd=iso(new Date(cur.getFullYear(),cur.getMonth()+1,0));
-      const mExp=tx.filter(t=>t.txn_date>=mStart && t.txn_date<=mEnd && t.type==='expense').reduce((a,b)=>a+b.amount,0);
-      buckets.push({label:cur.toLocaleString('en-IN',{month:'short'}), exp:mExp});
+      const mStart=iso(new Date(Math.max(cur,new Date(start.getFullYear(),start.getMonth(),start.getDate())))); const mEnd=iso(new Date(Math.min(new Date(cur.getFullYear(),cur.getMonth()+1,0),new Date(end.getFullYear(),end.getMonth(),end.getDate()))));
+      buckets.push({label:cur.toLocaleString('en-IN',{month:'short'}), exp:sumRange('expense',mStart,mEnd), inc:sumRange('income',mStart,mEnd)});
       cur.setMonth(cur.getMonth()+1);
     }
   }
@@ -508,7 +613,7 @@ function renderDashboard(){
       iBar.innerHTML=`<i style="height:${hInc}%;background:var(--green)"></i>`;
       barBox.appendChild(iBar);
     }
-    const lab=document.createElement('div'); lab.textContent=(period==='month'&&bi%5!==0)?'':b.label; lab.style.fontSize='10px'; lab.style.color='var(--muted)'; lab.style.whiteSpace='nowrap'; lab.style.overflow='hidden'; lab.style.textOverflow='ellipsis'; lab.style.maxWidth='100%';
+    const lab=document.createElement('div'); lab.textContent=(sub==='Daily'&&buckets.length>10&&bi%5!==0)?'':b.label; lab.style.fontSize='10px'; lab.style.color='var(--muted)'; lab.style.whiteSpace='nowrap'; lab.style.overflow='hidden'; lab.style.textOverflow='ellipsis'; lab.style.maxWidth='100%';
     wrap.appendChild(barBox); wrap.appendChild(lab); barsEl.appendChild(wrap);
   });
   // breakdown
@@ -607,8 +712,17 @@ function saveCategory(){
   const parent=$('#catParent').value||null; const emoji=$('#catEmoji').value||''; const color=$('#catColor').value||COLORS[0];
   // one sub level only: if parent selected, ensure parent is top-level
   if(parent){const pr=catName(parent); if(pr && pr.parent_id){alert('Only one sub-category level allowed.');return;}}
+  const exists=q(`SELECT id,kind,parent_id FROM categories WHERE id=?`,[id])[0];
+  if(exists){
+    const kids=q(`SELECT count(*) c FROM categories WHERE parent_id=? AND deleted_at IS NULL`,[id])[0].c;
+    if(parent && kids){alert('This category has its own sub-categories, so it cannot become a sub-category. Move its sub-categories first.');return;}
+    if(catKind!==exists.kind){
+      const used=q(`SELECT count(*) c FROM transactions WHERE deleted_at IS NULL AND (category_id=? OR category_id IN (SELECT id FROM categories WHERE parent_id=?))`,[id,id])[0].c;
+      if(used){alert('This category is used by '+used+' '+exists.kind+' entr'+(used>1?'ies':'y')+', so it cannot be changed to '+catKind+'. Create a new '+catKind+' category instead.');return;}
+      if(kids){alert('This category has sub-categories, so its kind cannot be changed.');return;}
+    }
+  }
   const now=new Date().toISOString();
-  const exists=q(`SELECT id FROM categories WHERE id=?`,[id])[0];
   if(exists) run(`UPDATE categories SET name=?, parent_id=?, kind=?, emoji=?, color=?, updated_at=? WHERE id=?`,[name,parent,catKind,emoji,color,now,id]);
   else run(`INSERT INTO categories (id,name,parent_id,kind,emoji,color,active,updated_at) VALUES (?,?,?,?,?,?,1,?)`,[id,name,parent,catKind,emoji,color,now]);
   saveDB(); catDlg.close(); renderAll();
@@ -621,7 +735,7 @@ function renderCategories(){
       const subs=q(`SELECT * FROM categories WHERE parent_id=? AND deleted_at IS NULL ORDER BY active DESC, name`,[p.id]);
       const row=document.createElement('div'); row.className='card';
       const subChips=subs.map(s=>`<span class="chip sub" style="opacity:${s.active?1:.45};border-style:${s.active?'solid':'dashed'}">${s.emoji?esc(s.emoji)+' ':''}${esc(s.name)} <a href="#" data-edit="${s.id}" style="margin-left:6px;text-decoration:none">✎</a> <a href="#" data-toggle="${s.id}" style="text-decoration:none">${s.active?'Hide':'Show'}</a></span>`).join(' ');
-      row.innerHTML=`<div class="hrow"><span style="display:flex;gap:8px;align-items:center">${iconHtml(p)}<b style="${p.active?'':'opacity:.5;text-decoration:line-through'}">${esc(p.name)}</b> ${p.active?'':'<span class="badge red">Hidden</span>'}</span><span style="display:flex;gap:6px"><button class="btn sm" data-edit="${p.id}">Edit</button><button class="btn sm" data-toggle="${p.id}">${p.active?'Hide':'Show'}</button><button class="btn sm" data-addsub="${p.id}">+ Sub</button></span></div>${subs.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">${subChips}</div>`:'<div class="muted" style="font-size:12px;margin-top:8px">No sub-categories</div>'}`;
+      row.innerHTML=`<div class="hrow"><span style="display:flex;gap:8px;align-items:center">${iconHtml(p)}<b style="${p.active?'':'opacity:.5;text-decoration:line-through'}">${esc(p.name)}</b> ${p.active?'':'<span class="badge red">Hidden</span>'}</span><span style="display:flex;gap:6px"><button class="btn sm" data-edit="${p.id}">Edit</button><button class="btn sm" data-toggle="${p.id}">${p.active?'Hide':'Show'}</button><button class="btn sm" data-addsub="${p.id}">+ Sub</button>${kind==='expense'?`<button class="btn sm" data-budget="${esc(p.id)}">Budget</button>`:''}</span></div>${kind==='expense'&&budgetOf(p.id)?`<div class="muted" style="font-size:12px;margin-top:6px">Budget ${fmtPaise(budgetOf(p.id))} / month</div>`:''}${subs.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">${subChips}</div>`:'<div class="muted" style="font-size:12px;margin-top:8px">No sub-categories</div>'}`;
       el.appendChild(row);
     });
     if(!parents.length) el.innerHTML='<div class="empty">No categories</div>';
@@ -629,6 +743,7 @@ function renderCategories(){
   section('expense','#catsExpense'); section('income','#catsIncome');
   document.querySelectorAll('[data-edit]').forEach(a=>a.onclick=(e)=>{e.preventDefault(); const id=a.getAttribute('data-edit'); const cat=catName(id); openCat(cat);});
   document.querySelectorAll('[data-toggle]').forEach(a=>a.onclick=(e)=>{e.preventDefault(); const id=a.getAttribute('data-toggle'); const cat=catName(id); const now=new Date().toISOString(); run(`UPDATE categories SET active=?, updated_at=? WHERE id=?`,[cat.active?0:1,now,id]); saveDB(); renderAll();});
+  document.querySelectorAll('[data-budget]').forEach(a=>a.onclick=()=>openBudget(a.dataset.budget));
   document.querySelectorAll('[data-addsub]').forEach(a=>a.onclick=(e)=>{e.preventDefault(); const pid=a.getAttribute('data-addsub'); const parent=catName(pid); openCat(null); catKind=parent.kind; setCatKind(catKind); fillParentOptions(); $('#catParent').value=pid;});
 }
 
@@ -643,21 +758,113 @@ function nav(name){curView=name;
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
-function updateBk(){const d=localStorage.getItem('exp_last_backup'),el=$('#bkNote'); if(!d){el.textContent='No backup yet. Tap Download to save one.'; el.style.color='var(--red)'; return;}
+function updateBk(){if(saveFailed) return; const d=localStorage.getItem('exp_last_backup'),el=$('#bkNote'); if(!d){el.textContent='No backup yet. Tap Backup to save one.'; el.style.color='var(--red)'; return;}
   const days=Math.floor((Date.now()-new Date(d))/864e5); el.textContent='Last backup: '+iso(new Date(d))+(days>=14?' (over 14 days ago, please download a new backup)':''); el.style.color=days>=14?'var(--red)':'';}
 // Backup / Restore
 function setupBackup(){
-  $('#backupBtn').onclick=async()=>{
+  $('#backupBtn').onclick=()=>{
     if(!db){alert('DB not ready');return;}
-    const data=db.export(); const blob=new Blob([data],{type:'application/x-sqlite3'});
-    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='expense-'+iso(new Date())+'.db'; a.click(); localStorage.setItem('exp_last_backup',new Date().toISOString()); updateBk(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    downloadBackup('expense-'+iso(new Date())+'.db'); localStorage.setItem('exp_last_backup',new Date().toISOString()); updateBk();
   };
   $('#restoreFile').onchange=async e=>{
-    const f=e.target.files[0]; if(!f) return; if(!confirm('Restore will replace ALL current data. Continue?')){e.target.value=''; return;}
-    const buf=await f.arrayBuffer(); const SQL=await initSqlJs({locateFile:x=>`https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${x}`});
-    try{ const test=new SQL.Database(new Uint8Array(buf)); test.exec('SELECT count(*) FROM categories'); test.close(); }catch(err){ alert('Invalid DB file'); return;}
-    await idbPut(new Uint8Array(buf)); location.reload();
+    const f=e.target.files[0]; e.target.value=''; if(!f) return;
+    let buf;
+    try{ buf=new Uint8Array(await f.arrayBuffer()); const SQL=await getSQL(); const test=new SQL.Database(buf);
+      const tabs=new Set(test.exec(`SELECT name FROM sqlite_master WHERE type='table'`)[0]?.values.map(v=>v[0])||[]); test.exec('SELECT count(*) FROM categories'); test.close();
+      if(!['categories','transactions','loans'].every(t=>tabs.has(t))) throw new Error('missing tables');
+    }catch(err){ alert('This file is not an Expense Tracker backup. Nothing was changed.'); return;}
+    if(!confirm('Restore will replace ALL current data with "'+f.name+'".\n\nA copy of your current data will be downloaded first, so you can undo this. Continue?')) return;
+    if(db) downloadBackup('expense-before-restore-'+iso(new Date())+'.db');
+    try{ await saveChain; await idbPut(buf); }catch(err){ alert('Restore failed: '+((err&&err.message)||err)+'. Your current data was not changed.'); return;}
+    setTimeout(()=>location.reload(),1500); // give the safety download time to start
   };
+}
+
+function downloadFile(blob,name){const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000);}
+function downloadBackup(name){downloadFile(new Blob([db.export()],{type:'application/x-sqlite3'}),name);}
+
+// ---- CSV export (F1) ----
+function csvCell(v,num){if(v===null||v===undefined) return ''; let s=String(v); if(!num&&/^[=+\-@\t\r]/.test(s)) s="'"+s; return /[",\r\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;} // leading ' stops Excel treating text as a formula
+const rs=p=>(p/100).toFixed(2);
+function catParts(id){const c=catName(id); if(!c) return ['','']; if(!c.parent_id) return [c.name,'']; const p=catName(c.parent_id); return [p?p.name:'',c.name];}
+function accName(id){const a=ACC.get(id); return a?a.name:'';}
+function txCSV(rows){return [['Date','Time','Type','Category','Sub-category','Account','Merchant / client','Amount (Rs.)','Signed amount (Rs.)','Fixed / Variable','Tax-deductible','Note','Recurring'],
+  ...rows.map(r=>{const [c,s]=catParts(r.category_id); return [[r.txn_date],[r.txn_time],[r.type==='income'?'Income':'Expense'],[c],[s],[accName(r.account_id)],[r.merchant],[rs(r.amount),1],[rs(r.type==='income'?r.amount:-r.amount),1],[r.nature==='fixed'?'Fixed':r.nature==='variable'?'Variable':''],[r.tax_ded?'Yes':''],[r.note],[String(r.id).startsWith('rec:')?'Yes':'']];})];}
+function writeCSV(table,name){const body=table.map(row=>row.map(c=>Array.isArray(c)?csvCell(c[0],c[1]):csvCell(c)).join(',')).join('\r\n'); downloadFile(new Blob(['﻿'+body],{type:'text/csv;charset=utf-8'}),name);}
+function exportCSV(kind){
+  const d=iso(new Date()); let t;
+  if(kind==='transactions') t=txCSV(q(`SELECT * FROM transactions WHERE deleted_at IS NULL ORDER BY txn_date, rowid`));
+  else if(kind==='loans'){const K={given:'I lent',returned:'I received back',borrowed:'I borrowed',repaid:'I repaid'}; t=[['Date','Time','Person','Type','Amount (Rs.)','Account','Note'],...q(`SELECT * FROM loans WHERE deleted_at IS NULL ORDER BY txn_date, rowid`).map(r=>[[r.txn_date],[r.txn_time],[r.person],[K[r.kind]||r.kind],[rs(r.amount),1],[accName(r.account_id)],[r.note]])];}
+  else t=[['Date','From account','To account','Amount (Rs.)','Note'],...q(`SELECT * FROM transfers WHERE deleted_at IS NULL ORDER BY txn_date, rowid`).map(r=>[[r.txn_date],[accName(r.from_id)],[accName(r.to_id)],[rs(r.amount),1],[r.note]])];
+  writeCSV(t,'expense-'+kind+'-'+d+'.csv'); expDlg.close();
+}
+function exportHistory(){const rows=historyRows(); if(!rows.length) return alert('Nothing to export with these filters.'); writeCSV(txCSV(rows),'expense-history-'+iso(new Date())+'.csv');}
+
+// ---- Budgets (F4): one monthly limit per top-level expense category ----
+function budgetOf(cid){const r=q(`SELECT amount FROM budgets WHERE id=? AND deleted_at IS NULL`,['budget:'+cid])[0]; return r?r.amount:0;}
+function budgetRows(){return q(`SELECT b.*, c.name cname FROM budgets b JOIN categories c ON c.id=b.category_id WHERE b.deleted_at IS NULL AND c.deleted_at IS NULL AND b.amount>0 ORDER BY c.name COLLATE NOCASE`);}
+function openBudget(cid){const c=catName(cid); if(!c) return; $('#budCat').value=cid; $('#budTitle').textContent='Monthly budget: '+c.name; const a=budgetOf(cid); $('#budAmt').value=a?a/100:''; budDlg.showModal();}
+function saveBudget(){
+  const cid=$('#budCat').value, p=toPaise($('#budAmt').value), now=new Date().toISOString(), id='budget:'+cid; // same id on every device, so sync never duplicates it
+  if(isNaN(p)||p<0) return alert('Enter a valid amount');
+  if(p===0) run(`UPDATE budgets SET deleted_at=?,updated_at=? WHERE id=?`,[now,now,id]);
+  else run(`INSERT INTO budgets (id,category_id,amount,updated_at,deleted_at) VALUES (?,?,?,?,NULL) ON CONFLICT(id) DO UPDATE SET amount=excluded.amount,updated_at=excluded.updated_at,deleted_at=NULL`,[id,cid,p,now]);
+  saveDB(); budDlg.close(); renderAll();
+}
+function budgetWarning(cid,d){
+  const c=catName(cid); if(!c) return ''; const top=c.parent_id||c.id, lim=budgetOf(top); if(!lim) return '';
+  const m=d.slice(0,7), s=q(`SELECT COALESCE(SUM(t.amount),0) s FROM transactions t LEFT JOIN categories c ON c.id=t.category_id WHERE t.deleted_at IS NULL AND t.type='expense' AND substr(t.txn_date,1,7)=? AND (t.category_id=? OR c.parent_id=?)`,[m,top,top])[0].s;
+  const p=Math.round(s/lim*100), name=(catName(top)||{}).name||'';
+  if(p>=100) return `<span style="color:var(--red);font-weight:700">⚠ ${esc(name)} budget exceeded: ${fmtPaise(s)} of ${fmtPaise(lim)} (${p}%)</span>`;
+  if(p>=80) return `<span style="color:#d97706;font-weight:700">${esc(name)} budget: ${p}% used (${fmtPaise(lim-s)} left)</span>`;
+  return '';
+}
+
+// ---- Recurring entries (F5) ----
+function addMonthsClamp(dateISO,months,day){const d=pd(dateISO), y=d.getFullYear(), m=d.getMonth()+months, last=new Date(y,m+1,0).getDate(); return iso(new Date(y,m,Math.min(day,last)));}
+function nextOccur(dateISO,freq,day){if(freq==='weekly'){const d=pd(dateISO); d.setDate(d.getDate()+7); return iso(d);} return addMonthsClamp(dateISO,1,day||Number(dateISO.slice(8,10)));}
+// Creates every due entry up to today. Entry ids are "rec:<rule>:<date>", so the same entry is never created twice, even across synced devices.
+function processRecurring(){
+  const today=todayISO(); let n=0;
+  q(`SELECT * FROM recurring WHERE deleted_at IS NULL AND active=1 AND next_date<=?`,[today]).forEach(r=>{
+    let d=r.next_date, guard=0;
+    while(d<=today && guard++<120){
+      const id='rec:'+r.id+':'+d;
+      if(!q(`SELECT 1 x FROM transactions WHERE id=?`,[id]).length){
+        run(`INSERT INTO transactions (id,txn_date,amount,type,category_id,note,account_id,merchant,nature,tax_ded,txn_time,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,[id,d,r.amount,r.type,r.category_id,r.note||'',r.account_id,r.merchant||'',r.nature||'',r.tax_ded?1:0,'',new Date().toISOString()]); n++;
+      }
+      d=nextOccur(d,r.freq,r.anchor_day);
+    }
+    run(`UPDATE recurring SET next_date=?,updated_at=? WHERE id=?`,[d,new Date().toISOString(),r.id]);
+  });
+  return n;
+}
+function renderRecurring(){
+  const R=q(`SELECT * FROM recurring WHERE deleted_at IS NULL ORDER BY active DESC, next_date`), el=$('#recList');
+  el.innerHTML=R.length? R.map(r=>`<div class="item" style="padding:8px 10px;opacity:${r.active?1:.55}"><div style="flex:1;min-width:0"><div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">↻ ${esc(catPath(r.category_id))}${r.merchant?' · '+esc(r.merchant):''}</div><div class="muted" style="font-size:12px">${r.freq==='weekly'?'Every week':'Every month'} • ${accTag(r.account_id)}${r.active?'Next: '+esc(r.next_date):'Paused'}${r.note?' • '+esc(r.note):''}</div></div><b style="color:${r.type==='expense'?'var(--red)':'var(--green)'}">${r.type==='expense'?'-':'+'}${fmtPaise(r.amount)}</b> <button class="btn sm" data-rp="${esc(r.id)}">${r.active?'Pause':'Resume'}</button> <button class="btn sm" data-rd="${esc(r.id)}">✕</button></div>`).join('')
+    : '<div class="muted" style="font-size:13px">None. Choose "Repeat" when adding an entry.</div>';
+  el.querySelectorAll('[data-rp]').forEach(b=>b.onclick=()=>{const r=q(`SELECT * FROM recurring WHERE id=?`,[b.dataset.rp])[0]; if(!r) return; const now=new Date().toISOString();
+    if(r.active) run(`UPDATE recurring SET active=0,updated_at=? WHERE id=?`,[now,r.id]);
+    else{ let d=r.next_date; const t=todayISO(); while(d<t) d=nextOccur(d,r.freq,r.anchor_day); run(`UPDATE recurring SET active=1,next_date=?,updated_at=? WHERE id=?`,[d,now,r.id]); processRecurring(); } // resuming does not back-fill the paused weeks/months
+    saveDB(); renderAll();});
+  el.querySelectorAll('[data-rd]').forEach(b=>b.onclick=()=>{if(!confirm('Stop this recurring entry? Entries already added stay in History.')) return; delRow('recurring',b.dataset.rd);});
+}
+
+// ---- Printable report (F6) ----
+function printReport(){
+  const {start,end,label}=rangeFor(), s=iso(start), e=iso(end);
+  const tx=q(`SELECT * FROM transactions WHERE deleted_at IS NULL AND txn_date BETWEEN ? AND ? ORDER BY txn_date, rowid`,[s,e]);
+  const ex=tx.filter(t=>t.type==='expense'), exp=sumBy(ex,t=>t.amount), inc=sumBy(tx.filter(t=>t.type==='income'),t=>t.amount);
+  const incCats={}; tx.filter(t=>t.type==='income').forEach(t=>{const c=catName(t.category_id), id=c?(c.parent_id||c.id):'?'; incCats[id]=(incCats[id]||0)+t.amount;});
+  const tr=(cells)=>'<tr>'+cells.map(([v,n])=>`<td${n?' class="n"':''}>${v}</td>`).join('')+'</tr>';
+  let h=`<h1>Expense Tracker report</h1><div>${esc(label)} (${esc(s)} to ${esc(e)}) · printed ${esc(todayISO())}</div>
+  <h2>Summary</h2><table>${tr([['Income'],[fmtPaise(inc),1]])}${tr([['Expense'],[fmtPaise(exp),1]])}${tr([['<b>Net savings</b>'],['<b>'+fmtPaise(inc-exp)+'</b>',1]])}${tr([['Savings rate'],[inc?Math.round((inc-exp)/inc*100)+'%':'—',1]])}</table>`;
+  const ct=catTotals(ex);
+  if(ct.length) h+='<h2>Expenses by category</h2><table><tr><th>Category</th><th class="n">Amount</th><th class="n">Share</th></tr>'+ct.map(c=>tr([[esc(c.name)],[fmtPaise(c.total),1],[Math.round(c.total/exp*100)+'%',1]])).join('')+'</table>';
+  const ic=Object.entries(incCats).sort((a,b)=>b[1]-a[1]);
+  if(ic.length) h+='<h2>Income by category</h2><table><tr><th>Category</th><th class="n">Amount</th></tr>'+ic.map(([id,v])=>tr([[esc((catName(id)||{name:'—'}).name)],[fmtPaise(v),1]])).join('')+'</table>';
+  h+='<h2>All entries ('+tx.length+')</h2>'+(tx.length?'<table><tr><th>Date</th><th>Category</th><th>Account</th><th>Merchant / note</th><th class="n">Amount</th></tr>'+tx.map(t=>tr([[esc(t.txn_date)],[esc(catPath(t.category_id))],[esc(accName(t.account_id))],[esc([t.merchant,t.note].filter(Boolean).join(' · '))],[(t.type==='expense'?'-':'+')+fmtPaise(t.amount),1]])).join('')+'</table>':'<div>No entries in this period.</div>');
+  $('#printArea').innerHTML=h; window.print();
 }
 
 // ---- Accounts ----
@@ -688,14 +895,17 @@ function renderAccounts(){
   l.querySelectorAll('[data-ae]').forEach(b=>b.onclick=()=>openAcc(b.dataset.ae));
   l.querySelectorAll('[data-ah]').forEach(b=>b.onclick=()=>{const a=ACC.get(b.dataset.ah); run(`UPDATE accounts SET active=?,updated_at=? WHERE id=?`,[a.active?0:1,new Date().toISOString(),a.id]); saveDB(); renderAll();});
   const T=q(`SELECT * FROM transfers WHERE deleted_at IS NULL ORDER BY txn_date DESC, rowid DESC LIMIT 10`), tl=$('#trList');
-  tl.innerHTML=T.length? T.map(t=>`<div class="item" style="padding:8px 10px"><div style="flex:1;min-width:0"><div style="font-weight:700">${esc((ACC.get(t.from_id)||{}).name||'?')} → ${esc((ACC.get(t.to_id)||{}).name||'?')}</div><div class="muted" style="font-size:12px">${esc(t.txn_date)} • ${esc(t.note||'—')}</div></div><b>${fmtPaise(t.amount)}</b> <button class="btn sm" data-td="${t.id}">✕</button></div>`).join('') : '<div class="muted" style="font-size:13px">No transfers yet.</div>';
+  tl.innerHTML=T.length? T.map(t=>`<div class="item" style="padding:8px 10px"><div style="flex:1;min-width:0"><div style="font-weight:700">${esc((ACC.get(t.from_id)||{}).name||'?')} → ${esc((ACC.get(t.to_id)||{}).name||'?')}</div><div class="muted" style="font-size:12px">${esc(t.txn_date)} • ${esc(t.note||'—')}</div></div><b>${fmtPaise(t.amount)}</b> <button class="btn sm" data-te="${esc(t.id)}">Edit</button> <button class="btn sm" data-td="${esc(t.id)}">✕</button></div>`).join('') : '<div class="muted" style="font-size:13px">No transfers yet.</div>';
   tl.querySelectorAll('[data-td]').forEach(b=>b.onclick=()=>delRow('transfers',b.dataset.td));
+  tl.querySelectorAll('[data-te]').forEach(b=>b.onclick=()=>openTr(b.dataset.te));
+  renderRecurring();
 }
-function openAcc(id){const a=id?ACC.get(id):null; $('#accId').value=id||''; $('#accName').value=a?a.name:''; $('#accKind').value=a?(a.kind||'bank'):'bank'; $('#accOpen').value=a?(a.kind==='card'?Math.abs(a.opening||0):(a.opening||0))/100:''; $('#accEmoji').value=a?(a.emoji||''):'🏦'; $('#accDlgTitle').textContent=a?'Edit account':'New account'; accDlg.showModal();}
+// For a credit card the stored opening is the negative of what you owe; showing -opening keeps a card that is in credit correct when edited.
+function openAcc(id){const a=id?ACC.get(id):null; $('#accId').value=id||''; $('#accName').value=a?a.name:''; $('#accKind').value=a?(a.kind||'bank'):'bank'; $('#accOpen').value=a?(a.kind==='card'?-(a.opening||0):(a.opening||0))/100:''; $('#accEmoji').value=a?(a.emoji||''):'🏦'; $('#accDlgTitle').textContent=a?'Edit account':'New account'; accDlg.showModal();}
 function saveAcc(){
   const name=$('#accName').value.trim(); if(!name) return alert('Enter an account name');
   let open=toPaise($('#accOpen').value||'0'); if(isNaN(open)) return alert('Opening balance must be a number');
-  const kind=$('#accKind').value; if(kind==='card') open=-Math.abs(open);
+  const kind=$('#accKind').value; if(kind==='card') open=-open; // amount owed is stored as a negative balance; a minus sign means the card is in credit
   const id=$('#accId').value, now=new Date().toISOString();
   if([...ACC.values()].some(a=>!a.deleted_at&&a.id!==id&&a.name.toLowerCase()===name.toLowerCase())) return alert('An account with this name already exists');
   const emoji=$('#accEmoji').value.trim()||'🏦';
@@ -703,15 +913,23 @@ function saveAcc(){
   else run(`INSERT INTO accounts (id,name,emoji,opening,kind,active,updated_at) VALUES (?,?,?,?,?,1,?)`,[uid(),name,emoji,open,kind,now]);
   saveDB(); accDlg.close(); renderAll();
 }
-function openTr(){const A=activeAccs(); if(A.length<2) return alert('Create at least two accounts first.');
-  const o=A.map(a=>`<option value="${a.id}">${esc((a.emoji||'')+' '+a.name)}</option>`).join(''); $('#trFrom').innerHTML=o; $('#trTo').innerHTML=o; $('#trTo').selectedIndex=1; $('#trAmt').value=''; $('#trNote').value=''; $('#trDate').value=todayISO(); trDlg.showModal();}
-function saveTr(){const f=$('#trFrom').value,t=$('#trTo').value,p=toPaise($('#trAmt').value);
+function openTr(id){
+  const t=typeof id==='string'?q(`SELECT * FROM transfers WHERE id=? AND deleted_at IS NULL`,[id])[0]:null;
+  // editing may involve a hidden account, so then list every account
+  const A=t?q(`SELECT * FROM accounts WHERE deleted_at IS NULL ORDER BY active DESC, name COLLATE NOCASE`):activeAccs(); if(A.length<2) return alert('Create at least two accounts first.');
+  const o=A.map(a=>`<option value="${esc(a.id)}">${esc((a.emoji||'')+' '+a.name)}${a.active?'':' (hidden)'}</option>`).join(''); $('#trFrom').innerHTML=o; $('#trTo').innerHTML=o;
+  $('#trId').value=t?t.id:''; $('#trTitle').textContent=t?'Edit transfer':'Transfer between accounts';
+  if(t){$('#trFrom').value=t.from_id; $('#trTo').value=t.to_id; $('#trAmt').value=t.amount/100; $('#trNote').value=t.note||''; $('#trDate').value=t.txn_date;}
+  else{$('#trTo').selectedIndex=1; $('#trAmt').value=''; $('#trNote').value=''; $('#trDate').value=todayISO();}
+  trDlg.showModal();}
+function saveTr(){const f=$('#trFrom').value,t=$('#trTo').value,p=toPaise($('#trAmt').value),id=$('#trId').value,now=new Date().toISOString();
   if(f===t) return alert('Pick two different accounts'); if(!p||isNaN(p)||p<=0) return alert('Enter a valid amount');
-  run(`INSERT INTO transfers (id,txn_date,amount,from_id,to_id,note,updated_at) VALUES (?,?,?,?,?,?,?)`,[uid(),$('#trDate').value||todayISO(),p,f,t,$('#trNote').value.trim(),new Date().toISOString()]);
+  if(id) run(`UPDATE transfers SET txn_date=?,amount=?,from_id=?,to_id=?,note=?,updated_at=? WHERE id=?`,[$('#trDate').value||todayISO(),p,f,t,$('#trNote').value.trim(),now,id]);
+  else run(`INSERT INTO transfers (id,txn_date,amount,from_id,to_id,note,updated_at) VALUES (?,?,?,?,?,?,?)`,[uid(),$('#trDate').value||todayISO(),p,f,t,$('#trNote').value.trim(),now]);
   saveDB(); trDlg.close(); renderAll();}
 
 // ---- Google Drive sync: private appDataFolder, one JSON file per device, newest updated_at wins ----
-const SYNC_TABLES=['categories','accounts','transactions','loans','transfers'], G_SCOPE='https://www.googleapis.com/auth/drive.appdata';
+const SYNC_TABLES=['categories','accounts','transactions','loans','transfers','budgets','recurring'], G_SCOPE='https://www.googleapis.com/auth/drive.appdata';
 let gTok=null,gExp=0,syncing=false;
 function DEV(){let d=localStorage.getItem('exp_device'); if(!d){d=uid(); localStorage.setItem('exp_device',d);} return d;}
 function syncMsg(t,bad){const e=$('#syncMsg'); e.textContent=t; e.style.color=bad?'var(--red)':'var(--muted)';}
@@ -771,7 +989,7 @@ function fillMerch(){$('#merchList').innerHTML=q(`SELECT merchant m,COUNT(*) c F
 // ---- Net worth and money I owe ----
 function netWorth(){
   const {A,B}=balances(); let assets=0,liab=0;
-  A.filter(a=>a.active).forEach(a=>{const v=B[a.id]; if(v>=0) assets+=v; else liab+=-v;});
+  A.forEach(a=>{const v=B[a.id]; if(v>=0) assets+=v; else liab+=-v;}); // hidden accounts still hold money, so they count too
   const by={}; q(`SELECT person,kind,SUM(amount) s FROM loans WHERE deleted_at IS NULL GROUP BY person,kind`).forEach(r=>{(by[r.person]=by[r.person]||{})[r.kind]=r.s;});
   Object.values(by).forEach(o=>{assets+=Math.max(0,(o.given||0)-(o.returned||0)); liab+=Math.max(0,(o.borrowed||0)-(o.repaid||0));});
   return {assets,liab,net:assets-liab};
@@ -800,9 +1018,20 @@ function renderInsights(sISO,eISO,start,end,tx,exp,inc){
   const ex=tx.filter(t=>t.type==='expense'), now=new Date(), last=end<now?end:now;
   const days=start>now?1:Math.max(1,Math.floor((last-start)/864e5)+1);
   offset--; const pr=rangeFor(); offset++;
-  const prev=q(`SELECT COALESCE(SUM(amount),0) s FROM transactions WHERE deleted_at IS NULL AND type='expense' AND txn_date BETWEEN ? AND ?`,[iso(pr.start),iso(pr.end)])[0].s;
+  // Like-for-like: while the current period is still running, compare with the same number of days at the start of the previous period.
+  const partial=start<=now&&end>now; let prEnd=pr.end;
+  if(partial){const e=new Date(pr.start); e.setDate(e.getDate()+days-1); if(e<prEnd) prEnd=e;}
+  const prev=q(`SELECT COALESCE(SUM(amount),0) s FROM transactions WHERE deleted_at IS NULL AND type='expense' AND txn_date BETWEEN ? AND ?`,[iso(pr.start),iso(prEnd)])[0].s;
   const ch=prev? Math.round((exp-prev)/prev*100):null, net=inc-exp, nat=n=>sumBy(ex.filter(t=>t.nature===n),t=>t.amount);
-  let h=card2('Cash flow & velocity','<div class="grid2" style="gap:12px">'+stat('Net cash flow',fmtPaise(net),net<0?'var(--red)':'var(--green)')+stat('Savings rate',inc?Math.round(net/inc*100)+'%':'—')+stat('Daily average',fmtPaise(Math.round(exp/days)))+stat('vs previous period',ch===null?'—':(ch>0?'+':'')+ch+'%',ch>0?'var(--red)':'var(--green)')+stat('Fixed expenses',fmtPaise(nat('fixed')))+stat('Variable expenses',fmtPaise(nat('variable')))+stat('Untagged',fmtPaise(exp-nat('fixed')-nat('variable')))+stat('Tax-deductible',fmtPaise(sumBy(ex.filter(t=>t.tax_ded),t=>t.amount)))+'</div>');
+  let h=card2('Cash flow & velocity','<div class="grid2" style="gap:12px">'+stat('Net cash flow',fmtPaise(net),net<0?'var(--red)':'var(--green)')+stat('Savings rate',inc?Math.round(net/inc*100)+'%':'—')+stat('Daily average',fmtPaise(Math.round(exp/days)))+stat(partial?'vs same '+days+' day'+(days>1?'s':'')+' of previous period':'vs previous period',ch===null?'—':(ch>0?'+':'')+ch+'%',ch>0?'var(--red)':'var(--green)')+stat('Fixed expenses',fmtPaise(nat('fixed')))+stat('Variable expenses',fmtPaise(nat('variable')))+stat('Untagged',fmtPaise(exp-nat('fixed')-nat('variable')))+stat('Tax-deductible',fmtPaise(sumBy(ex.filter(t=>t.tax_ded),t=>t.amount)))+'</div>');
+  const bud=budgetRows();
+  if(bud.length){
+    if(period==='month'){
+      const spent={}; catTotals(ex).forEach(c=>spent[c.id]=c.total);
+      h+=card2('Budgets (this month)',bud.map(b=>{const s=spent[b.category_id]||0, p=Math.round(s/b.amount*100), col=p>=100?'var(--red)':p>=80?'#d97706':'var(--green)';
+        return `<div style="margin-bottom:10px"><div class="hrow" style="font-size:13px"><b>${esc(b.cname)}</b><span><b style="color:${col}">${fmtPaise(s)}</b> <span class="muted">of ${fmtPaise(b.amount)} · ${p}%</span></span></div><div class="progress" style="margin-top:6px"><i style="width:${Math.min(100,p)}%;background:${col}"></i></div><div class="muted" style="font-size:12px;margin-top:4px">${s>b.amount?'Over by '+fmtPaise(s-b.amount):'Left '+fmtPaise(b.amount-s)}</div></div>`;}).join(''));
+    } else h+=card2('Budgets','<div class="muted" style="font-size:13px">Budgets are monthly. Switch to Month to see them.</div>');
+  }
   const ct=catTotals(ex), PAL=['#14b8a6','#f97316','#a855f7','#0ea5e9','#eab308','#ec4899'];
   if(ct.length){
     let off=25,segs='',lg=''; const top=ct.slice(0,6), rest=exp-sumBy(top,c=>c.total), seg=(p,col)=>{segs+=`<circle cx="21" cy="21" r="15.9155" fill="none" style="stroke:${col}" stroke-width="6" stroke-dasharray="${p} ${100-p}" stroke-dashoffset="${off}"/>`; off-=p;};
@@ -832,7 +1061,7 @@ function runCmp(){
   if(v[0]>v[1]||v[2]>v[3]){out.innerHTML='<div class="muted" style="font-size:13px">A start date must be before its end date.</div>'; return;}
   const calc=(a,b)=>{const o={inc:0,exp:0,cats:{}}; q(`SELECT type,amount,category_id FROM transactions WHERE deleted_at IS NULL AND txn_date BETWEEN ? AND ?`,[a,b]).forEach(t=>{if(t.type==='income') o.inc+=t.amount; else{o.exp+=t.amount; const c=catName(t.category_id); if(c){const id=c.parent_id||c.id; o.cats[id]=(o.cats[id]||0)+t.amount;}}}); return o;};
   const A=calc(v[0],v[1]), B=calc(v[2],v[3]);
-  const chg=(a,b,badUp)=>{const d=a-b; if(!b) return d? '<span class="muted">new</span>':'–'; const p=Math.round(d/b*100); return `<span style="color:${d===0?'var(--muted)':((d>0)===badUp?'var(--red)':'var(--green)')}">${d>0?'+':''}${p}%</span>`;};
+  const chg=(a,b,badUp)=>{const d=a-b; if(!b) return d? '<span class="muted">new</span>':'–'; const p=Math.round(d/Math.abs(b)*100); return `<span style="color:${d===0?'var(--muted)':((d>0)===badUp?'var(--red)':'var(--green)')}">${d>0?'+':''}${p}%</span>`;};
   const row=(n,a,b,badUp,bold)=>`<tr style="${bold?'font-weight:800':''}"><td style="padding:6px 4px;border-top:1px solid var(--line)">${n}</td><td style="padding:6px 4px;text-align:right;border-top:1px solid var(--line)">${kfmt(a)}</td><td style="padding:6px 4px;text-align:right;border-top:1px solid var(--line)">${kfmt(b)}</td><td style="padding:6px 4px;text-align:right;border-top:1px solid var(--line)">${chg(a,b,badUp)}</td></tr>`;
   const ids=[...new Set([...Object.keys(A.cats),...Object.keys(B.cats)])].sort((x,y)=>Math.max(B.cats[y]||0,A.cats[y]||0)-Math.max(B.cats[x]||0,A.cats[x]||0));
   out.innerHTML='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px"><tr class="muted"><th style="text-align:left;padding:4px">Rs.</th><th style="text-align:right;padding:4px">A</th><th style="text-align:right;padding:4px">B</th><th style="text-align:right;padding:4px">Change</th></tr>'+row('Income',A.inc,B.inc,false,1)+row('Expense',A.exp,B.exp,true,1)+row('Net',A.inc-A.exp,B.inc-B.exp,false,1)+ids.map(id=>row(esc((catName(id)||{name:'?'}).name),A.cats[id]||0,B.cats[id]||0,true,0)).join('')+'</table></div>';
@@ -866,7 +1095,7 @@ function saveTxEdit(){
   saveDB(); txDlg.close(); renderAll();
 }
 
-init();
+init().catch(e=>{console.error(e); fatal('The app could not start: '+((e&&e.message)||e));});
 </script>
 </body>
 </html>
